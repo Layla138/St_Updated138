@@ -3,6 +3,14 @@ import sys
 import os
 import time
 
+# Global variables
+global location_text_alpha, location_text_timer, LOCATION_TEXT_DURATION, location_text_shown, character_alpha
+location_text_alpha = 255
+location_text_timer = 0
+LOCATION_TEXT_DURATION = 3000  # Duration in milliseconds (3 seconds)
+location_text_shown = False
+character_alpha = 0  # Start fully transparent
+
 # Initialize Pygame
 pygame.init()
 
@@ -157,18 +165,40 @@ def draw_loading_screen(screen, assets):
     return False
 
 def draw_game(screen, assets, selected_character):
+    global location_text_alpha, location_text_timer, location_text_shown, character_alpha
+
     screen.blit(assets['gloomy_forest'], (20, 20))
     
     if selected_character and selected_character in assets['characters']:
         character_image = assets['characters'][selected_character]
-        # Scale the character image to be slightly larger
         character_image = pygame.transform.scale(character_image, (150, 150))
-        
-        # Position the character at the bottom center of the game image area, slightly lower
         character_rect = character_image.get_rect()
-        character_rect.midbottom = (WIDTH // 2, HEIGHT - 140)  # Adjusted from 160 to 140
+        character_rect.midbottom = (WIDTH // 2, HEIGHT - 140)
         
-        screen.blit(character_image, character_rect)
+        # Create a copy of the image to modify its alpha
+        character_image_alpha = character_image.copy()
+        character_image_alpha.set_alpha(character_alpha)
+        screen.blit(character_image_alpha, character_rect)
+        
+        # Fade in the character
+        if character_alpha < 255:
+            character_alpha = min(255, character_alpha + 5)  # Adjust fade-in speed here
+
+    # Draw and fade the location text only if it hasn't been shown before
+    if not location_text_shown and location_text_alpha > 0:
+        font = assets['title_font']  # Use the custom font you loaded
+        text_surface = font.render("LOCATION: THE UPSIDE DOWN", True, (255, 255, 255))
+        text_surface.set_alpha(location_text_alpha)
+        text_rect = text_surface.get_rect(center=(WIDTH // 2, HEIGHT - 500))  # Positioned higher in the image area
+        screen.blit(text_surface, text_rect)
+
+        current_time = pygame.time.get_ticks()
+        if current_time - location_text_timer > LOCATION_TEXT_DURATION:
+            location_text_alpha = max(0, location_text_alpha - 5)  # Fade out
+    
+    # Mark the text as shown once it has completely faded out
+    if location_text_alpha == 0:
+        location_text_shown = True
 
 # Main game loop
 running = True
@@ -196,6 +226,8 @@ while running:
                         button_x, button_y, button_width, button_height = button_info
                         if button_x <= mouse_pos[0] <= button_x + button_width and button_y <= mouse_pos[1] <= button_y + button_height:
                             game_state = LOADING_SCREEN
+                            loading_progress = 0  # Reset loading progress
+                            fade_alpha = 0  # Reset fade alpha
             # Handle other game states...
 
     screen.fill((0, 0, 0))  # Fill the screen with black for the border
@@ -207,6 +239,10 @@ while running:
     elif game_state == LOADING_SCREEN:
         if draw_loading_screen(screen, assets):
             game_state = GAME_START
+            location_text_timer = pygame.time.get_ticks()  # Reset the timer when entering game state
+            location_text_alpha = 255  # Reset the alpha value
+            location_text_shown = False  # Reset the shown flag
+            character_alpha = 0  # Start with a fully transparent character
     elif game_state == GAME_START:
         draw_game(screen, assets, selected_character)
 
