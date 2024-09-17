@@ -11,143 +11,144 @@ WIDTH, HEIGHT = 800, 600
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Stranger Things Adventure")
 
-# Load the wallpaper image
-wallpaper = pygame.image.load("location/wallpaper.png")
-wallpaper = pygame.transform.scale(wallpaper, (WIDTH - 40, HEIGHT - 160))
+# Load assets
+def load_assets():
+    assets = {}
+    assets['wallpaper'] = pygame.image.load("location/wallpaper.png")
+    assets['wallpaper'] = pygame.transform.scale(assets['wallpaper'], (WIDTH - 40, HEIGHT - 160))
+    assets['gloomy_forest'] = pygame.image.load(os.path.join("location", "gloomy_forest_four.png"))
+    assets['gloomy_forest'] = pygame.transform.scale(assets['gloomy_forest'], (WIDTH - 40, HEIGHT - 160))
+    
+    # Load character images
+    assets['characters'] = {}
+    character_folder = "character_images"
+    for character in ["Mike", "Will", "Max", "Lucas", "Eleven", "Dustin"]:
+        img_path = os.path.join(character_folder, f"{character}.png")
+        if os.path.exists(img_path):
+            img = pygame.image.load(img_path)
+            assets['characters'][character] = pygame.transform.scale(img, (100, 100))
+    
+    # Load fonts
+    font_path = os.path.join("fonts", "Pixellari.ttf")
+    assets['title_font'] = pygame.font.Font(font_path, 36)
+    assets['button_font'] = pygame.font.Font(font_path, 24)
+    
+    return assets
 
-# Load the gloomy forest image
-gloomy_forest = pygame.image.load(os.path.join("location", "gloomy_forest_four.png"))
-gloomy_forest = pygame.transform.scale(gloomy_forest, (WIDTH - 40, HEIGHT - 160))  # Adjust for border and extended bottom
-
-# Colors
-BLACK = (0, 0, 0)
-WHITE = (255, 255, 255)
-RED = (255, 0, 0)
-GRAY = (100, 100, 100)
-
-# Font setup
-font_path = os.path.join("fonts", "Pixellari.ttf")
-title_font = pygame.font.Font(font_path, 36)
-button_font = pygame.font.Font(font_path, 24)
-
-# Button properties
-BUTTON_WIDTH = 200
-BUTTON_HEIGHT = 50
-BUTTON_X = (WIDTH - BUTTON_WIDTH) // 2
-BUTTON_Y = HEIGHT - 100
-
-# Character selection
-characters = ["Mike", "Will", "Max", "Lucas", "Eleven", "Dustin"]
-character_images = {}
-selected_character = None
-
-# Load character images
-character_folder = "character_images"
-for character in characters:
-    img_path = os.path.join(character_folder, f"{character}.png")
-    if os.path.exists(img_path):
-        img = pygame.image.load(img_path)
-        character_images[character] = pygame.transform.scale(img, (100, 100))
-    else:
-        print(f"Warning: Image for {character} not found.")
+assets = load_assets()
 
 # Game states
 TITLE_SCREEN = 0
 CHARACTER_SELECT = 1
 LOADING_SCREEN = 2
 GAME_START = 3
-game_state = TITLE_SCREEN
 
-# Loading bar variables
-loading_progress = 0
-loading_speed = 0.5  # Adjust this to change loading speed
+# Game variables
+game_state = TITLE_SCREEN
+selected_character = None
 
 # Blinking effect variables
 blink_timer = 0
 blink_interval = 250  # milliseconds
 show_border = True
 
-# Fade in variables
+# Loading progress variables
+loading_progress = 0
+loading_speed = 0.5  # Adjust this to change loading speed
 fade_alpha = 0
 FADE_SPEED = 5
 
-# Player variables
-player_image = None
-player_rect = None
-
-def draw_title_screen():
-    screen.blit(wallpaper, (20, 20))
+# Draw functions
+def draw_title_screen(screen, assets):
+    screen.blit(assets['wallpaper'], (20, 20))
     title_text = "Welcome to the"
     subtitle_text = "Stranger Things adventure game!"
-    title_surface = title_font.render(title_text, True, WHITE)
-    subtitle_surface = title_font.render(subtitle_text, True, WHITE)
+    title_surface = assets['title_font'].render(title_text, True, (255, 255, 255))
+    subtitle_surface = assets['title_font'].render(subtitle_text, True, (255, 255, 255))
     screen.blit(title_surface, title_surface.get_rect(center=(WIDTH // 2, HEIGHT - 200)))
     screen.blit(subtitle_surface, subtitle_surface.get_rect(center=(WIDTH // 2, HEIGHT - 160)))
-    pygame.draw.rect(screen, RED, (BUTTON_X, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT))
-    play_text = button_font.render("PLAY", True, WHITE)
-    screen.blit(play_text, play_text.get_rect(center=(BUTTON_X + BUTTON_WIDTH // 2, BUTTON_Y + BUTTON_HEIGHT // 2)))
+    
+    # Draw play button
+    button_width, button_height = 200, 50
+    button_x = (WIDTH - button_width) // 2
+    button_y = HEIGHT - 100
+    pygame.draw.rect(screen, (255, 0, 0), (button_x, button_y, button_width, button_height))
+    play_text = assets['button_font'].render("PLAY", True, (255, 255, 255))
+    screen.blit(play_text, play_text.get_rect(center=(button_x + button_width // 2, button_y + button_height // 2)))
 
-def draw_character_select():
+    return button_x, button_y, button_width, button_height  # Return button dimensions for click detection
+
+def draw_character_select(screen, assets, selected_character):
     global blink_timer, show_border
-    screen.blit(wallpaper, (20, 20))
-    
-    # Move "Select Your Character" text back to the top
+    screen.blit(assets['wallpaper'], (20, 20))
     title_text = "Select Your Character"
-    title_surface = title_font.render(title_text, True, WHITE)
+    title_surface = assets['title_font'].render(title_text, True, (255, 255, 255))
     screen.blit(title_surface, title_surface.get_rect(center=(WIDTH // 2, 50)))
-    
-    for i, character in enumerate(characters):
-        x = 150 + (i % 3) * 200
-        y = 150 + (i // 3) * 150
-        if character in character_images:
-            screen.blit(character_images[character], (x, y))
-        name_text = button_font.render(character, True, WHITE)
-        screen.blit(name_text, name_text.get_rect(center=(x + 50, y + 120)))
-        
-        if character == selected_character and show_border:
-            pygame.draw.rect(screen, RED, (x-5, y-5, 110, 110), 3)  # Blinking highlight for selected character
-    
-    if selected_character:
-        pygame.draw.rect(screen, RED, (BUTTON_X, BUTTON_Y, BUTTON_WIDTH, BUTTON_HEIGHT))
-        start_text = button_font.render("Start Game", True, WHITE)
-        screen.blit(start_text, start_text.get_rect(center=(BUTTON_X + BUTTON_WIDTH // 2, BUTTON_Y + BUTTON_HEIGHT // 2)))
     
     current_time = pygame.time.get_ticks()
     if current_time - blink_timer > blink_interval:
         blink_timer = current_time
         show_border = not show_border
+    
+    for i, character in enumerate(assets['characters']):
+        x = 150 + (i % 3) * 200
+        y = 150 + (i // 3) * 150
+        screen.blit(assets['characters'][character], (x, y))
+        name_text = assets['button_font'].render(character, True, (255, 255, 255))
+        screen.blit(name_text, name_text.get_rect(center=(x + 50, y + 120)))
+        
+        if character == selected_character and show_border:
+            pygame.draw.rect(screen, (255, 0, 0), (x-5, y-5, 110, 110), 3)
+    
+    # Draw start game button if character is selected
+    if selected_character:
+        button_width, button_height = 200, 50
+        button_x = (WIDTH - button_width) // 2
+        button_y = HEIGHT - 100
+        pygame.draw.rect(screen, (255, 0, 0), (button_x, button_y, button_width, button_height))
+        start_text = assets['button_font'].render("Start Game", True, (255, 255, 255))
+        screen.blit(start_text, start_text.get_rect(center=(button_x + button_width // 2, button_y + button_height // 2)))
+        return button_x, button_y, button_width, button_height
+    return None
 
-def draw_loading_screen():
+def draw_loading_screen(screen, assets):
     global loading_progress, fade_alpha
-    screen.fill(BLACK)  # Fill the screen with black for the border
-    screen.blit(wallpaper, (20, 20))
+    screen.fill((0, 0, 0))  # Fill the screen with black for the border
+    screen.blit(assets['wallpaper'], (20, 20))
     
-    # Draw "Game loading..." text
-    loading_text = title_font.render("Game loading...", True, WHITE)
-    screen.blit(loading_text, loading_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 50)))
-    
-    # Draw loading bar
-    bar_width = 400
-    bar_height = 40
-    bar_x = (WIDTH - bar_width) // 2
-    bar_y = HEIGHT // 2 + 50
-    
-    # Draw empty bar
-    pygame.draw.rect(screen, GRAY, (bar_x, bar_y, bar_width, bar_height))
-    # Draw filled portion of bar
-    fill_width = int(bar_width * loading_progress)
-    pygame.draw.rect(screen, RED, (bar_x, bar_y, fill_width, bar_height))
-    
-    # Update loading progress
     if loading_progress < 1:
+        # Draw "Loading..." text
+        loading_text = assets['title_font'].render("Loading...", True, (255, 255, 255))
+        screen.blit(loading_text, loading_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 50)))
+        
+        # Draw loading bar
+        bar_width = 400
+        bar_height = 40
+        bar_x = (WIDTH - bar_width) // 2
+        bar_y = HEIGHT // 2 + 50
+        
+        # Draw empty bar
+        pygame.draw.rect(screen, (100, 100, 100), (bar_x, bar_y, bar_width, bar_height))
+        # Draw filled portion of bar
+        fill_width = int(bar_width * loading_progress)
+        pygame.draw.rect(screen, (255, 0, 0), (bar_x, bar_y, fill_width, bar_height))
+        
+        # Draw message in the black border area with larger font
+        font_path = os.path.join("fonts", "Pixellari.ttf")
+        message_font = pygame.font.Font(font_path, 32)
+        message_text = message_font.render("Be prepared for an amazing adventure!", True, (255, 255, 255))
+        screen.blit(message_text, message_text.get_rect(center=(WIDTH // 2, HEIGHT - 60)))
+        
+        # Update loading progress
         loading_progress += loading_speed * 0.01
     else:
-        # Start fading in the gloomy forest image
-        fade_surface = pygame.Surface((WIDTH - 40, HEIGHT - 160))
+        # Start fading out the loading screen and fading in the gloomy forest image
+        screen.blit(assets['gloomy_forest'], (20, 20))
+        
+        fade_surface = pygame.Surface((WIDTH, HEIGHT))
         fade_surface.fill((0, 0, 0))
         fade_surface.set_alpha(255 - fade_alpha)
-        screen.blit(gloomy_forest, (20, 20))
-        screen.blit(fade_surface, (20, 20))
+        screen.blit(fade_surface, (0, 0))
         
         fade_alpha += FADE_SPEED
         if fade_alpha >= 255:
@@ -155,20 +156,19 @@ def draw_loading_screen():
     
     return False
 
-def start_game():
-    global player_image, player_rect, selected_character
-    # Load player image
-    player_image = pygame.image.load(os.path.join("character_images", f"{selected_character}.png"))
-    player_image = pygame.transform.scale(player_image, (150, 150))  # Increased size to 150x150
-    player_rect = player_image.get_rect()
-    # Position the character at the bottom center, on the black border
-    player_rect.midbottom = (WIDTH // 2, HEIGHT - 5)  # 5 pixels from the bottom
-
-def draw_game():
-    screen.fill(BLACK)
-    screen.blit(gloomy_forest, (20, 20))
-    if player_image and player_rect:
-        screen.blit(player_image, player_rect)
+def draw_game(screen, assets, selected_character):
+    screen.blit(assets['gloomy_forest'], (20, 20))
+    
+    if selected_character and selected_character in assets['characters']:
+        character_image = assets['characters'][selected_character]
+        # Scale the character image to be slightly larger
+        character_image = pygame.transform.scale(character_image, (150, 150))
+        
+        # Position the character at the bottom center of the game image area, slightly lower
+        character_rect = character_image.get_rect()
+        character_rect.midbottom = (WIDTH // 2, HEIGHT - 140)  # Adjusted from 160 to 140
+        
+        screen.blit(character_image, character_rect)
 
 # Main game loop
 running = True
@@ -179,33 +179,36 @@ while running:
         if event.type == pygame.MOUSEBUTTONDOWN:
             mouse_pos = pygame.mouse.get_pos()
             if game_state == TITLE_SCREEN:
-                if BUTTON_X <= mouse_pos[0] <= BUTTON_X + BUTTON_WIDTH and BUTTON_Y <= mouse_pos[1] <= BUTTON_Y + BUTTON_HEIGHT:
+                button_x, button_y, button_width, button_height = draw_title_screen(screen, assets)
+                if button_x <= mouse_pos[0] <= button_x + button_width and button_y <= mouse_pos[1] <= button_y + button_height:
                     game_state = CHARACTER_SELECT
             elif game_state == CHARACTER_SELECT:
-                for i, character in enumerate(characters):
+                for i, character in enumerate(assets['characters']):
                     x = 150 + (i % 3) * 200
                     y = 150 + (i // 3) * 150
                     if x <= mouse_pos[0] <= x + 100 and y <= mouse_pos[1] <= y + 100:
                         selected_character = character
-                        print(f"Selected character: {character}")
-                        blink_timer = pygame.time.get_ticks()
+                        blink_timer = pygame.time.get_ticks()  # Reset blink timer when character is selected
                 
-                if selected_character and BUTTON_X <= mouse_pos[0] <= BUTTON_X + BUTTON_WIDTH and BUTTON_Y <= mouse_pos[1] <= BUTTON_Y + BUTTON_HEIGHT:
-                    game_state = LOADING_SCREEN
-                    loading_progress = 0  # Reset loading progress
+                if selected_character:
+                    button_info = draw_character_select(screen, assets, selected_character)
+                    if button_info:
+                        button_x, button_y, button_width, button_height = button_info
+                        if button_x <= mouse_pos[0] <= button_x + button_width and button_y <= mouse_pos[1] <= button_y + button_height:
+                            game_state = LOADING_SCREEN
+            # Handle other game states...
 
-    screen.fill(BLACK)  # Fill the screen with black for the border
+    screen.fill((0, 0, 0))  # Fill the screen with black for the border
     
     if game_state == TITLE_SCREEN:
-        draw_title_screen()
+        draw_title_screen(screen, assets)
     elif game_state == CHARACTER_SELECT:
-        draw_character_select()
+        draw_character_select(screen, assets, selected_character)
     elif game_state == LOADING_SCREEN:
-        if draw_loading_screen():
+        if draw_loading_screen(screen, assets):
             game_state = GAME_START
-            start_game()
     elif game_state == GAME_START:
-        draw_game()
+        draw_game(screen, assets, selected_character)
 
     pygame.display.flip()
     pygame.time.Clock().tick(60)  # Limit frame rate to 60 FPS
