@@ -5,11 +5,15 @@ import time
 
 # Global variables
 global location_text_alpha, location_text_timer, LOCATION_TEXT_DURATION, location_text_shown, character_alpha
+global prompt_alpha, choices_alpha
+
 location_text_alpha = 255
 location_text_timer = 0
 LOCATION_TEXT_DURATION = 3000  # Duration in milliseconds (3 seconds)
 location_text_shown = False
 character_alpha = 0  # Start fully transparent
+prompt_alpha = 0
+choices_alpha = 0
 
 # Initialize Pygame
 pygame.init()
@@ -26,6 +30,7 @@ def load_assets():
     assets['wallpaper'] = pygame.transform.scale(assets['wallpaper'], (WIDTH - 40, HEIGHT - 160))
     assets['gloomy_forest'] = pygame.image.load(os.path.join("location", "gloomy_forest_four.png"))
     assets['gloomy_forest'] = pygame.transform.scale(assets['gloomy_forest'], (WIDTH - 40, HEIGHT - 160))
+    assets['outside_hawkins_lab'] = pygame.image.load('location/outside_hawkins_lab.png').convert()
     
     # Load character images
     assets['characters'] = {}
@@ -164,49 +169,78 @@ def draw_loading_screen(screen, assets):
     
     return False
 
-def draw_game(screen, assets, selected_character):
-    global location_text_alpha, location_text_timer, location_text_shown, character_alpha
+def draw_game(screen, assets, selected_character, current_scenario):
+    global location_text_alpha, location_text_timer, location_text_shown, character_alpha, current_scenario
 
-    screen.blit(assets['gloomy_forest'], (20, 20))
+    # The only change is here - select the background based on the scenario
+    if current_scenario == "HAWKINS_LAB":
+        screen.blit(assets['outside_hawkins_lab'], (20, 20))
+    else:
+        screen.blit(assets['gloomy_forest'], (20, 20))
     
+    # The rest of the function remains exactly the same as before
     if selected_character and selected_character in assets['characters']:
         character_image = assets['characters'][selected_character]
         character_image = pygame.transform.scale(character_image, (150, 150))
         character_rect = character_image.get_rect()
         character_rect.midbottom = (WIDTH // 2, HEIGHT - 140)
         
-        # Create a copy of the image to modify its alpha
         character_image_alpha = character_image.copy()
         character_image_alpha.set_alpha(character_alpha)
         screen.blit(character_image_alpha, character_rect)
         
-        # Fade in the character
         if character_alpha < 255:
-            character_alpha = min(255, character_alpha + 5)  # Adjust fade-in speed here
+            character_alpha = min(255, character_alpha + 5)
 
-    # Draw and fade the location text only if it hasn't been shown before
-    if not location_text_shown and location_text_alpha > 0:
-        font = assets['title_font']  # Use the custom font you loaded
-        text_surface = font.render("LOCATION: THE UPSIDE DOWN", True, (255, 255, 255))
-        text_surface.set_alpha(location_text_alpha)
-        text_rect = text_surface.get_rect(center=(WIDTH // 2, HEIGHT - 500))  # Positioned higher in the image area
-        screen.blit(text_surface, text_rect)
+    # Draw and fade the location text
+    font = assets['title_font']
+    text_surface = font.render("LOCATION: THE UPSIDE DOWN", True, (255, 255, 255))
+    text_surface.set_alpha(location_text_alpha)
+    text_rect = text_surface.get_rect(center=(WIDTH // 2, HEIGHT - 500))
+    screen.blit(text_surface, text_rect)
 
-        current_time = pygame.time.get_ticks()
-        if current_time - location_text_timer > LOCATION_TEXT_DURATION:
-            location_text_alpha = max(0, location_text_alpha - 5)  # Fade out
-    
+    current_time = pygame.time.get_ticks()
+    if current_time - location_text_timer > LOCATION_TEXT_DURATION:
+        location_text_alpha = max(0, location_text_alpha - 5)  # Fade out
+
+    # Only draw prompt and choices if location text has faded out
+    if location_text_alpha == 0:
+        prompt_font = assets['button_font']
+        prompt_text = "You Find Yourself In The Upside Down. What do you do?"
+        prompt_surface = prompt_font.render(prompt_text, True, (255, 255, 255))
+        prompt_rect = prompt_surface.get_rect(center=(WIDTH // 2, HEIGHT - 100))
+        screen.blit(prompt_surface, prompt_rect)
+
+        choices = [
+            "Explore",
+            "Sneak into Vecna's Lair",
+            "Shout for help",
+            "Find The Hawkins Lab"
+        ]
+        
+        # Left choices
+        screen.blit(prompt_font.render(choices[0], True, (255, 255, 255)), (50, HEIGHT - 60))
+        screen.blit(prompt_font.render(choices[1], True, (255, 255, 255)), (50, HEIGHT - 30))
+        
+        # Right choices
+        right_choice_x = WIDTH - 50 - prompt_font.size(choices[2])[0]  # Align right
+        screen.blit(prompt_font.render(choices[2], True, (255, 255, 255)), (right_choice_x, HEIGHT - 60))
+        right_choice_x = WIDTH - 50 - prompt_font.size(choices[3])[0]  # Align right
+        screen.blit(prompt_font.render(choices[3], True, (255, 255, 255)), (right_choice_x, HEIGHT - 30))
+
     # Mark the text as shown once it has completely faded out
     if location_text_alpha == 0:
         location_text_shown = True
 
 # Main game loop
+current_scenario = "MAIN"
+
 running = True
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-        if event.type == pygame.MOUSEBUTTONDOWN:
+        elif event.type == pygame.MOUSEBUTTONDOWN:
             mouse_pos = pygame.mouse.get_pos()
             if game_state == TITLE_SCREEN:
                 button_x, button_y, button_width, button_height = draw_title_screen(screen, assets)
@@ -228,9 +262,13 @@ while running:
                             game_state = LOADING_SCREEN
                             loading_progress = 0  # Reset loading progress
                             fade_alpha = 0  # Reset fade alpha
-            # Handle other game states...
-
-    screen.fill((0, 0, 0))  # Fill the screen with black for the border
+            elif game_state == GAME_START:
+                if HEIGHT - 60 <= mouse_pos[1] <= HEIGHT:
+                    if WIDTH - 200 <= mouse_pos[0] <= WIDTH:
+                        current_scenario = "HAWKINS_LAB"
+                        location_text_alpha = 255
+                        location_text_timer = pygame.time.get_ticks()
+                        location_text_shown = False
     
     if game_state == TITLE_SCREEN:
         draw_title_screen(screen, assets)
@@ -244,7 +282,7 @@ while running:
             location_text_shown = False  # Reset the shown flag
             character_alpha = 0  # Start with a fully transparent character
     elif game_state == GAME_START:
-        draw_game(screen, assets, selected_character)
+        draw_game(screen, assets, selected_character, current_scenario)
 
     pygame.display.flip()
     pygame.time.Clock().tick(60)  # Limit frame rate to 60 FPS
