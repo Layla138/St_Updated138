@@ -26,7 +26,8 @@ pygame.display.set_caption("Stranger Things Adventure")
 # Load assets
 def load_assets():
     assets = {}
-    assets['wallpaper'] = pygame.image.load("location/wallpaper.png")
+    # Load the wallpaper
+    assets['wallpaper'] = pygame.image.load(os.path.join("location", "wallpaper.png"))
     assets['wallpaper'] = pygame.transform.scale(assets['wallpaper'], (WIDTH - 40, HEIGHT - 160))
     assets['gloomy_forest'] = pygame.image.load(os.path.join("location", "gloomy_forest_four.png"))
     assets['gloomy_forest'] = pygame.transform.scale(assets['gloomy_forest'], (WIDTH - 40, HEIGHT - 160))
@@ -170,14 +171,24 @@ def draw_loading_screen(screen, assets):
     return False
 
 def draw_game(screen, assets, selected_character, current_scenario):
-    global location_text_alpha, location_text_timer, location_text_shown, character_alpha, current_scenario
+    global location_text_alpha, location_text_timer, location_text_shown, character_alpha
 
-    # The only change is here - select the background based on the scenario
-    if current_scenario == "HAWKINS_LAB":
-        screen.blit(assets['outside_hawkins_lab'], (20, 20))
+    # Draw the wallpaper for the "SHOUT_FOR_HELP" scenario
+    if current_scenario == "SHOUT_FOR_HELP":
+        screen.blit(assets['wallpaper'], (20, 20))  # Position it like the other images
     else:
         screen.blit(assets['gloomy_forest'], (20, 20))
-    
+        
+        # Draw the location text for other scenarios
+        if current_scenario == "UPSIDE_DOWN":  # Adjust this condition as needed
+            # ... existing code to draw location text ...
+            pass  # Replace with actual drawing code
+
+    # Ensure location text is not shown for SHOUT_FOR_HELP
+    if current_scenario != "SHOUT_FOR_HELP":
+        # ... existing code to draw location text ...
+        pass  # Replace with actual drawing code
+
     # The rest of the function remains exactly the same as before
     if selected_character and selected_character in assets['characters']:
         character_image = assets['characters'][selected_character]
