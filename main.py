@@ -173,21 +173,19 @@ def draw_loading_screen(screen, assets):
 def draw_game(screen, assets, selected_character, current_scenario):
     global location_text_alpha, location_text_timer, location_text_shown, character_alpha
 
-    # Draw the wallpaper for the "SHOUT_FOR_HELP" scenario
+    # Draw the appropriate background based on the current scenario
     if current_scenario == "SHOUT_FOR_HELP":
-        screen.blit(assets['wallpaper'], (20, 20))  # Position it like the other images
+        screen.blit(assets['gloomy_forest'], (20, 20))  # Use gloomy_forest for the background
     else:
-        screen.blit(assets['gloomy_forest'], (20, 20))
-        
-        # Draw the location text for other scenarios
-        if current_scenario == "UPSIDE_DOWN":  # Adjust this condition as needed
-            # ... existing code to draw location text ...
-            pass  # Replace with actual drawing code
+        screen.blit(assets['gloomy_forest'], (20, 20))  # Keep the same background for other scenarios
 
-    # Ensure location text is not shown for SHOUT_FOR_HELP
+    # Only draw location text if the current scenario is not "SHOUT_FOR_HELP"
     if current_scenario != "SHOUT_FOR_HELP":
-        # ... existing code to draw location text ...
-        pass  # Replace with actual drawing code
+        font = assets['title_font']
+        text_surface = font.render("LOCATION: THE UPSIDE DOWN", True, (255, 255, 255))
+        text_surface.set_alpha(location_text_alpha)
+        text_rect = text_surface.get_rect(center=(WIDTH // 2, HEIGHT - 500))
+        screen.blit(text_surface, text_rect)
 
     # The rest of the function remains exactly the same as before
     if selected_character and selected_character in assets['characters']:
@@ -276,8 +274,8 @@ while running:
             elif game_state == GAME_START:
                 if HEIGHT - 60 <= mouse_pos[1] <= HEIGHT:
                     if WIDTH - 200 <= mouse_pos[0] <= WIDTH:
-                        current_scenario = "HAWKINS_LAB"
-                        location_text_alpha = 255
+                        current_scenario = "SHOUT_FOR_HELP"  # Set the scenario to SHOUT_FOR_HELP
+                        location_text_alpha = 0  # Set alpha to 0 to hide the location text
                         location_text_timer = pygame.time.get_ticks()
                         location_text_shown = False
     
