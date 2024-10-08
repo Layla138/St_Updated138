@@ -5,8 +5,9 @@ import time
 
 # Global variables
 global location_text_alpha, location_text_timer, LOCATION_TEXT_DURATION, location_text_shown, character_alpha
-global prompt_alpha, choices_alpha
+global prompt_alpha, choices_alpha, prompt_hidden  # Add prompt_hidden to the global variables
 
+# Initialize global variables
 location_text_alpha = 255
 location_text_timer = 0
 LOCATION_TEXT_DURATION = 3000  # Duration in milliseconds (3 seconds)
@@ -14,6 +15,7 @@ location_text_shown = False
 character_alpha = 0  # Start fully transparent
 prompt_alpha = 0
 choices_alpha = 0
+prompt_hidden = False  # Initialize prompt_hidden to False
 
 # Initialize Pygame
 pygame.init()
@@ -32,6 +34,8 @@ def load_assets():
     assets['gloomy_forest'] = pygame.image.load(os.path.join("location", "gloomy_forest_four.png"))
     assets['gloomy_forest'] = pygame.transform.scale(assets['gloomy_forest'], (WIDTH - 40, HEIGHT - 160))
     assets['outside_hawkins_lab'] = pygame.image.load('location/outside_hawkins_lab.png').convert()
+    assets['gloomy_forest_three'] = pygame.image.load(os.path.join("location", "gloomy_forest_three.png"))
+    assets['gloomy_forest_three'] = pygame.transform.scale(assets['gloomy_forest_three'], (WIDTH - 40, HEIGHT - 160))
     
     # Load character images
     assets['characters'] = {}
@@ -173,8 +177,10 @@ def draw_loading_screen(screen, assets):
 def draw_game(screen, assets, selected_character, current_scenario):
     global location_text_alpha, location_text_timer, location_text_shown, character_alpha
 
-    # Draw the appropriate background based on the current scenario
-    if current_scenario == "SHOUT_FOR_HELP":
+    # Change background based on the current scenario
+    if current_scenario == "EXPLORE":  # Update this condition
+        screen.blit(assets['gloomy_forest_three'], (20, 20))  # Use gloomy_forest_three for the background
+    elif current_scenario == "SHOUT_FOR_HELP":
         screen.blit(assets['gloomy_forest'], (20, 20))  # Use gloomy_forest for the background
     else:
         screen.blit(assets['gloomy_forest'], (20, 20))  # Keep the same background for other scenarios
@@ -212,8 +218,8 @@ def draw_game(screen, assets, selected_character, current_scenario):
     if current_time - location_text_timer > LOCATION_TEXT_DURATION:
         location_text_alpha = max(0, location_text_alpha - 5)  # Fade out
 
-    # Only draw prompt and choices if location text has faded out
-    if location_text_alpha == 0:
+    # Only draw prompt and choices if location text has faded out and current scenario is not "EXPLORE"
+    if location_text_alpha == 0 and current_scenario != "EXPLORE":
         prompt_font = assets['button_font']
         prompt_text = "You Find Yourself In The Upside Down. What do you do?"
         prompt_surface = prompt_font.render(prompt_text, True, (255, 255, 255))
@@ -278,7 +284,13 @@ while running:
                         location_text_alpha = 0  # Set alpha to 0 to hide the location text
                         location_text_timer = pygame.time.get_ticks()
                         location_text_shown = False
-    
+                    elif mouse_pos[0] <= 200:  # Check if "Explore" is clicked
+                        current_scenario = "EXPLORE"  # Set the scenario to EXPLORE
+                        location_text_alpha = 0  # Set alpha to 0 to hide the location text
+                        location_text_timer = pygame.time.get_ticks()
+                        location_text_shown = False
+                        # No need to set any additional flags; just skip drawing the prompt and choices
+
     if game_state == TITLE_SCREEN:
         draw_title_screen(screen, assets)
     elif game_state == CHARACTER_SELECT:
@@ -292,6 +304,31 @@ while running:
             character_alpha = 0  # Start with a fully transparent character
     elif game_state == GAME_START:
         draw_game(screen, assets, selected_character, current_scenario)
+
+        # Only draw prompt and choices if the current scenario is not "EXPLORE"
+        if current_scenario != "EXPLORE":
+            prompt_font = assets['button_font']
+            prompt_text = "You Find Yourself In The Upside Down. What do you do?"
+            prompt_surface = prompt_font.render(prompt_text, True, (255, 255, 255))
+            prompt_rect = prompt_surface.get_rect(center=(WIDTH // 2, HEIGHT - 100))
+            screen.blit(prompt_surface, prompt_rect)
+
+            choices = [
+                "Explore",
+                "Sneak into Vecna's Lair",
+                "Shout for help",
+                "Find The Hawkins Lab"
+            ]
+            
+            # Left choices
+            screen.blit(prompt_font.render(choices[0], True, (255, 255, 255)), (50, HEIGHT - 60))
+            screen.blit(prompt_font.render(choices[1], True, (255, 255, 255)), (50, HEIGHT - 30))
+            
+            # Right choices
+            right_choice_x = WIDTH - 50 - prompt_font.size(choices[2])[0]  # Align right
+            screen.blit(prompt_font.render(choices[2], True, (255, 255, 255)), (right_choice_x, HEIGHT - 60))
+            right_choice_x = WIDTH - 50 - prompt_font.size(choices[3])[0]  # Align right
+            screen.blit(prompt_font.render(choices[3], True, (255, 255, 255)), (right_choice_x, HEIGHT - 30))
 
     pygame.display.flip()
     pygame.time.Clock().tick(60)  # Limit frame rate to 60 FPS
