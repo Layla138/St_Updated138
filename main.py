@@ -5,7 +5,12 @@ import time
 
 # Global variables
 global location_text_alpha, location_text_timer, LOCATION_TEXT_DURATION, location_text_shown, character_alpha
-global prompt_alpha, choices_alpha, prompt_hidden  # Add prompt_hidden to the global variables
+global prompt_alpha, choices_alpha, prompt_hidden, explore_fade_alpha, explore_fade_in_alpha
+global vecna_fade_alpha, vecna_fade_in_alpha
+global can_click
+global hawkins_fade_alpha, hawkins_fade_in_alpha
+global shout_fade_alpha, shout_text_visible
+global explore_character
 
 # Initialize global variables
 location_text_alpha = 255
@@ -16,6 +21,16 @@ character_alpha = 0  # Start fully transparent
 prompt_alpha = 0
 choices_alpha = 0
 prompt_hidden = False  # Initialize prompt_hidden to False
+explore_fade_alpha = 0
+explore_fade_in_alpha = 0  # New variable for fade-in effect
+vecna_fade_alpha = 0
+vecna_fade_in_alpha = 0
+can_click = True  # This will control when clicks are allowed
+hawkins_fade_alpha = 0
+hawkins_fade_in_alpha = 0
+shout_fade_alpha = 0
+shout_text_visible = False  # Flag to control when to show text
+explore_character = None
 
 # Initialize Pygame
 pygame.init()
@@ -33,9 +48,14 @@ def load_assets():
     assets['wallpaper'] = pygame.transform.scale(assets['wallpaper'], (WIDTH - 40, HEIGHT - 160))
     assets['gloomy_forest'] = pygame.image.load(os.path.join("location", "gloomy_forest_four.png"))
     assets['gloomy_forest'] = pygame.transform.scale(assets['gloomy_forest'], (WIDTH - 40, HEIGHT - 160))
-    assets['outside_hawkins_lab'] = pygame.image.load('location/outside_hawkins_lab.png').convert()
+    assets['outside_hawkins_lab'] = pygame.image.load(os.path.join("location", "hawkins_lab.png"))
+    assets['outside_hawkins_lab'] = pygame.transform.scale(assets['outside_hawkins_lab'], (WIDTH - 40, HEIGHT - 160))
     assets['gloomy_forest_three'] = pygame.image.load(os.path.join("location", "gloomy_forest_three.png"))
     assets['gloomy_forest_three'] = pygame.transform.scale(assets['gloomy_forest_three'], (WIDTH - 40, HEIGHT - 160))
+    assets['gloomy_forest_one'] = pygame.image.load(os.path.join("location", "gloomy_forest_one.png"))
+    assets['gloomy_forest_one'] = pygame.transform.scale(assets['gloomy_forest_one'], (WIDTH - 40, HEIGHT - 160))
+    assets['hawkins_lab'] = pygame.image.load(os.path.join("location", "hawkins_lab.png"))
+    assets['hawkins_lab'] = pygame.transform.scale(assets['hawkins_lab'], (WIDTH - 40, HEIGHT - 160))
     
     # Load character images
     assets['characters'] = {}
@@ -50,6 +70,10 @@ def load_assets():
     font_path = os.path.join("fonts", "Pixellari.ttf")
     assets['title_font'] = pygame.font.Font(font_path, 36)
     assets['button_font'] = pygame.font.Font(font_path, 24)
+    
+    # Load Demogorgon image
+    assets['demogorgon'] = pygame.image.load(os.path.join("character_images", "demogorgon.png"))
+    assets['demogorgon'] = pygame.transform.scale(assets['demogorgon'], (150, 150))
     
     return assets
 
@@ -75,6 +99,12 @@ loading_progress = 0
 loading_speed = 0.5  # Adjust this to change loading speed
 fade_alpha = 0
 FADE_SPEED = 5
+
+# Add new scenario-specific choices
+EXPLORE_CHOICES = [
+    "Go deeper into the forest",
+    "Return to previous location"
+]
 
 # Draw functions
 def draw_title_screen(screen, assets):
@@ -176,76 +206,231 @@ def draw_loading_screen(screen, assets):
 
 def draw_game(screen, assets, selected_character, current_scenario):
     global location_text_alpha, location_text_timer, location_text_shown, character_alpha
+    global explore_fade_alpha, explore_fade_in_alpha
+    global vecna_fade_alpha, vecna_fade_in_alpha
+    global hawkins_fade_alpha, hawkins_fade_in_alpha
+    global shout_fade_alpha, shout_text_visible
 
-    # Change background based on the current scenario
-    if current_scenario == "EXPLORE":  # Update this condition
-        screen.blit(assets['gloomy_forest_three'], (20, 20))  # Use gloomy_forest_three for the background
-    elif current_scenario == "SHOUT_FOR_HELP":
-        screen.blit(assets['gloomy_forest'], (20, 20))  # Use gloomy_forest for the background
+    if current_scenario == "EXPLORE":
+        # Draw the green background with original fade effects
+        if explore_fade_alpha < 255:
+            screen.blit(assets['gloomy_forest'], (20, 20))
+            fade_surface = pygame.Surface((WIDTH, HEIGHT))
+            fade_surface.fill((0, 0, 0))
+            fade_surface.set_alpha(explore_fade_alpha)
+            screen.blit(fade_surface, (0, 0))
+            explore_fade_alpha += FADE_SPEED
+        else:
+            screen.fill((0, 0, 0))
+            new_background = assets['gloomy_forest_three']
+            new_background.set_alpha(explore_fade_in_alpha)
+            screen.blit(new_background, (20, 20))
+            
+            if explore_fade_in_alpha < 255:
+                explore_fade_in_alpha += FADE_SPEED
+                
+                # Draw the demogorgon with fade
+                demogorgon = assets['demogorgon'].copy()
+                demogorgon = pygame.transform.scale(demogorgon, (220, 220))
+                demogorgon.set_alpha(explore_fade_in_alpha)
+                demogorgon_rect = demogorgon.get_rect()
+                demogorgon_rect.left = 160
+                demogorgon_rect.bottom = HEIGHT - 120
+                screen.blit(demogorgon, demogorgon_rect)
+                
+                # Draw the character with fade
+                if selected_character in assets['characters']:
+                    character = assets['characters'][selected_character]
+                    scaled_character = pygame.transform.scale(character, (160, 160))
+                    flipped_character = pygame.transform.flip(scaled_character, True, False)
+                    character_with_alpha = flipped_character.copy()
+                    character_with_alpha.set_alpha(explore_fade_in_alpha)
+                    character_rect = character_with_alpha.get_rect()
+                    character_rect.right = WIDTH - 160
+                    character_rect.bottom = HEIGHT - 140
+                    screen.blit(character_with_alpha, character_rect)
+            else:
+                # Draw fully opaque demogorgon
+                demogorgon = assets['demogorgon'].copy()
+                demogorgon = pygame.transform.scale(demogorgon, (220, 220))
+                demogorgon_rect = demogorgon.get_rect()
+                demogorgon_rect.left = 160
+                demogorgon_rect.bottom = HEIGHT - 120
+                screen.blit(demogorgon, demogorgon_rect)
+                
+                # Draw fully opaque character
+                if selected_character in assets['characters']:
+                    character = assets['characters'][selected_character]
+                    scaled_character = pygame.transform.scale(character, (160, 160))
+                    flipped_character = pygame.transform.flip(scaled_character, True, False)
+                    character_rect = flipped_character.get_rect()
+                    character_rect.right = WIDTH - 160
+                    character_rect.bottom = HEIGHT - 140
+                    screen.blit(flipped_character, character_rect)
+
+    elif current_scenario == "VECNA_LAIR":
+        if vecna_fade_alpha < 255:
+            screen.blit(assets['gloomy_forest'], (20, 20))
+            fade_surface = pygame.Surface((WIDTH, HEIGHT))
+            fade_surface.fill((0, 0, 0))
+            fade_surface.set_alpha(vecna_fade_alpha)
+            screen.blit(fade_surface, (0, 0))
+            vecna_fade_alpha += FADE_SPEED
+        else:
+            screen.fill((0, 0, 0))
+            new_background = assets['gloomy_forest_three']
+            new_background.set_alpha(vecna_fade_in_alpha)
+            screen.blit(new_background, (20, 20))
+            
+            if vecna_fade_in_alpha < 255:
+                vecna_fade_in_alpha += FADE_SPEED
+
+    elif current_scenario == "HAWKINS_LAB":
+        if hawkins_fade_alpha < 255:
+            screen.blit(assets['gloomy_forest'], (20, 20))
+            fade_surface = pygame.Surface((WIDTH, HEIGHT))
+            fade_surface.fill((0, 0, 0))
+            fade_surface.set_alpha(hawkins_fade_alpha)
+            screen.blit(fade_surface, (0, 0))
+            hawkins_fade_alpha += FADE_SPEED
+        else:
+            screen.fill((0, 0, 0))
+            new_background = assets['outside_hawkins_lab']
+            new_background.set_alpha(hawkins_fade_in_alpha)
+            screen.blit(new_background, (20, 20))
+            
+            if hawkins_fade_in_alpha < 255:
+                hawkins_fade_in_alpha += FADE_SPEED
+
+    elif current_scenario == "SHOUT":
+        # Draw the background
+        screen.blit(assets['gloomy_forest'], (20, 20))
+        
+        # Draw the character
+        if selected_character and selected_character in assets['characters']:
+            character_image = assets['characters'][selected_character]
+            character_image = pygame.transform.scale(character_image, (150, 150))
+            character_rect = character_image.get_rect()
+            character_rect.midbottom = (WIDTH // 2, HEIGHT - 140)
+            screen.blit(character_image, character_rect)
+
+        # Fade to black
+        fade_surface = pygame.Surface((WIDTH, HEIGHT))
+        fade_surface.fill((0, 0, 0))
+        fade_surface.set_alpha(shout_fade_alpha)
+        screen.blit(fade_surface, (0, 0))
+        
+        if shout_fade_alpha < 255:
+            shout_fade_alpha += FADE_SPEED
+        elif not shout_text_visible:
+            shout_text_visible = True
+
+        # Show text and button after screen is black
+        if shout_text_visible:
+            # Draw text
+            text = assets['title_font'].render("Nobody heard you...", True, (255, 255, 255))
+            text_rect = text.get_rect(center=(WIDTH // 2, HEIGHT // 2))
+            screen.blit(text, text_rect)
+            
+            # Draw END button
+            button_width, button_height = 200, 50
+            button_x = (WIDTH - button_width) // 2
+            button_y = HEIGHT - 100
+            pygame.draw.rect(screen, (255, 0, 0), (button_x, button_y, button_width, button_height))
+            
+            # Draw button text
+            end_text = assets['button_font'].render("END", True, (255, 255, 255))
+            end_rect = end_text.get_rect(center=(button_x + button_width // 2, button_y + button_height // 2))
+            screen.blit(end_text, end_rect)
+
     else:
-        screen.blit(assets['gloomy_forest'], (20, 20))  # Keep the same background for other scenarios
+        # Reset all fade values when not in special scenarios
+        explore_fade_alpha = 0
+        explore_fade_in_alpha = 0
+        vecna_fade_alpha = 0
+        vecna_fade_in_alpha = 0
+        hawkins_fade_alpha = 0
+        hawkins_fade_in_alpha = 0
 
-    # Only draw location text if the current scenario is not "SHOUT_FOR_HELP"
-    if current_scenario != "SHOUT_FOR_HELP":
-        font = assets['title_font']
-        text_surface = font.render("LOCATION: THE UPSIDE DOWN", True, (255, 255, 255))
-        text_surface.set_alpha(location_text_alpha)
-        text_rect = text_surface.get_rect(center=(WIDTH // 2, HEIGHT - 500))
-        screen.blit(text_surface, text_rect)
+        # Draw the initial background
+        screen.blit(assets['gloomy_forest'], (20, 20))
 
-    # The rest of the function remains exactly the same as before
-    if selected_character and selected_character in assets['characters']:
-        character_image = assets['characters'][selected_character]
-        character_image = pygame.transform.scale(character_image, (150, 150))
-        character_rect = character_image.get_rect()
-        character_rect.midbottom = (WIDTH // 2, HEIGHT - 140)
-        
-        character_image_alpha = character_image.copy()
-        character_image_alpha.set_alpha(character_alpha)
-        screen.blit(character_image_alpha, character_rect)
-        
-        if character_alpha < 255:
-            character_alpha = min(255, character_alpha + 5)
+        # Only show prompts and choices in the main scenario
+        if current_scenario == "MAIN":
+            # Draw the character if selected
+            if selected_character and selected_character in assets['characters']:
+                character_image = assets['characters'][selected_character]
+                character_image = pygame.transform.scale(character_image, (150, 150))
+                character_rect = character_image.get_rect()
+                character_rect.midbottom = (WIDTH // 2, HEIGHT - 140)
+                
+                character_image_alpha = character_image.copy()
+                character_image_alpha.set_alpha(character_alpha)
+                screen.blit(character_image_alpha, character_rect)
+                
+                if character_alpha < 255:
+                    character_alpha = min(255, character_alpha + 5)
 
-    # Draw and fade the location text
-    font = assets['title_font']
-    text_surface = font.render("LOCATION: THE UPSIDE DOWN", True, (255, 255, 255))
-    text_surface.set_alpha(location_text_alpha)
-    text_rect = text_surface.get_rect(center=(WIDTH // 2, HEIGHT - 500))
-    screen.blit(text_surface, text_rect)
+            # Draw location text
+            font = assets['title_font']
+            text_surface = font.render("LOCATION: THE UPSIDE DOWN", True, (255, 255, 255))
+            text_surface.set_alpha(location_text_alpha)
+            text_rect = text_surface.get_rect(center=(WIDTH // 2, HEIGHT - 500))
+            screen.blit(text_surface, text_rect)
 
-    current_time = pygame.time.get_ticks()
-    if current_time - location_text_timer > LOCATION_TEXT_DURATION:
-        location_text_alpha = max(0, location_text_alpha - 5)  # Fade out
+            # Handle location text fade
+            current_time = pygame.time.get_ticks()
+            if current_time - location_text_timer > LOCATION_TEXT_DURATION:
+                location_text_alpha = max(0, location_text_alpha - 5)
 
-    # Only draw prompt and choices if location text has faded out and current scenario is not "EXPLORE"
-    if location_text_alpha == 0 and current_scenario != "EXPLORE":
-        prompt_font = assets['button_font']
-        prompt_text = "You Find Yourself In The Upside Down. What do you do?"
-        prompt_surface = prompt_font.render(prompt_text, True, (255, 255, 255))
-        prompt_rect = prompt_surface.get_rect(center=(WIDTH // 2, HEIGHT - 100))
-        screen.blit(prompt_surface, prompt_rect)
+            # Draw prompt and choices only if location text has faded
+            if location_text_alpha == 0:
+                prompt_font = assets['button_font']
+                prompt_text = "You Find Yourself In The Upside Down. What do you do?"
+                prompt_surface = prompt_font.render(prompt_text, True, (255, 255, 255))
+                prompt_rect = prompt_surface.get_rect(center=(WIDTH // 2, HEIGHT - 100))
+                screen.blit(prompt_surface, prompt_rect)
 
-        choices = [
-            "Explore",
-            "Sneak into Vecna's Lair",
-            "Shout for help",
-            "Find The Hawkins Lab"
-        ]
-        
-        # Left choices
-        screen.blit(prompt_font.render(choices[0], True, (255, 255, 255)), (50, HEIGHT - 60))
-        screen.blit(prompt_font.render(choices[1], True, (255, 255, 255)), (50, HEIGHT - 30))
-        
-        # Right choices
-        right_choice_x = WIDTH - 50 - prompt_font.size(choices[2])[0]  # Align right
-        screen.blit(prompt_font.render(choices[2], True, (255, 255, 255)), (right_choice_x, HEIGHT - 60))
-        right_choice_x = WIDTH - 50 - prompt_font.size(choices[3])[0]  # Align right
-        screen.blit(prompt_font.render(choices[3], True, (255, 255, 255)), (right_choice_x, HEIGHT - 30))
+                choices = [
+                    "Explore",
+                    "Sneak into Vecna's Forest Lair",
+                    "Shout for help",
+                    "Find The Hawkins Lab"
+                ]
+                
+                # Left choices
+                screen.blit(prompt_font.render(choices[0], True, (255, 255, 255)), (50, HEIGHT - 60))
+                screen.blit(prompt_font.render(choices[1], True, (255, 255, 255)), (50, HEIGHT - 30))
+                
+                # Right choices
+                right_choice_x = WIDTH - 50 - prompt_font.size(choices[2])[0]
+                screen.blit(prompt_font.render(choices[2], True, (255, 255, 255)), (right_choice_x, HEIGHT - 60))
+                right_choice_x = WIDTH - 50 - prompt_font.size(choices[3])[0]
+                screen.blit(prompt_font.render(choices[3], True, (255, 255, 255)), (right_choice_x, HEIGHT - 30))
 
-    # Mark the text as shown once it has completely faded out
-    if location_text_alpha == 0:
-        location_text_shown = True
+# Add this new function near your other draw functions
+def draw_explore_scene(screen, assets, selected_character):
+    # Draw the green background
+    screen.fill((0, 0, 0))
+    screen.blit(assets['gloomy_forest_one'], (20, 20))
+    
+    # Draw the selected character on the right side
+    if selected_character in assets['characters']:
+        character = assets['characters'][selected_character]
+        scaled_character = pygame.transform.scale(character, (150, 150))
+        flipped_character = pygame.transform.flip(scaled_character, True, False)
+        screen.blit(flipped_character, (WIDTH - 150, HEIGHT // 2))
+    
+    # Draw new choices
+    choices = ["Run", "Fight"]
+    prompt_font = assets['button_font']
+    
+    # Left choice (Run)
+    screen.blit(prompt_font.render(choices[0], True, (255, 255, 255)), (50, HEIGHT - 60))
+    
+    # Right choice (Fight)
+    right_choice_x = WIDTH - 50 - prompt_font.size(choices[1])[0]
+    screen.blit(prompt_font.render(choices[1], True, (255, 255, 255)), (right_choice_x, HEIGHT - 60))
 
 # Main game loop
 current_scenario = "MAIN"
@@ -267,7 +452,9 @@ while running:
                     y = 150 + (i // 3) * 150
                     if x <= mouse_pos[0] <= x + 100 and y <= mouse_pos[1] <= y + 100:
                         selected_character = character
+                        explore_character = character  # Set the explore character here
                         blink_timer = pygame.time.get_ticks()  # Reset blink timer when character is selected
+                        print(f"Character selected: {selected_character}")  # Debug print
                 
                 if selected_character:
                     button_info = draw_character_select(screen, assets, selected_character)
@@ -278,18 +465,42 @@ while running:
                             loading_progress = 0  # Reset loading progress
                             fade_alpha = 0  # Reset fade alpha
             elif game_state == GAME_START:
-                if HEIGHT - 60 <= mouse_pos[1] <= HEIGHT:
-                    if WIDTH - 200 <= mouse_pos[0] <= WIDTH:
-                        current_scenario = "SHOUT_FOR_HELP"  # Set the scenario to SHOUT_FOR_HELP
-                        location_text_alpha = 0  # Set alpha to 0 to hide the location text
-                        location_text_timer = pygame.time.get_ticks()
-                        location_text_shown = False
-                    elif mouse_pos[0] <= 200:  # Check if "Explore" is clicked
-                        current_scenario = "EXPLORE"  # Set the scenario to EXPLORE
-                        location_text_alpha = 0  # Set alpha to 0 to hide the location text
-                        location_text_timer = pygame.time.get_ticks()
-                        location_text_shown = False
-                        # No need to set any additional flags; just skip drawing the prompt and choices
+                if can_click:  # Only handle clicks if they're allowed
+                    if HEIGHT - 60 <= mouse_pos[1] <= HEIGHT:
+                        if mouse_pos[0] <= 200:  # Explore
+                            current_scenario = "EXPLORE"
+                            explore_fade_alpha = 0
+                            explore_fade_in_alpha = 0
+                            can_click = False
+                        elif mouse_pos[1] <= HEIGHT - 30 and 50 <= mouse_pos[0] <= 200:  # Sneak into Vecna's Lair
+                            current_scenario = "VECNA_LAIR"
+                            vecna_fade_alpha = 0
+                            vecna_fade_in_alpha = 0
+                            can_click = False
+                        elif HEIGHT - 60 <= mouse_pos[1] <= HEIGHT - 30 and mouse_pos[0] >= WIDTH - 200:
+                            current_scenario = "SHOUT"
+                            shout_fade_alpha = 0
+                            shout_text_visible = False
+                            can_click = False
+                            print("Clicked Shout")  # Debug print to verify click
+                        elif mouse_pos[1] >= HEIGHT - 30 and mouse_pos[0] >= WIDTH - 200:
+                            current_scenario = "HAWKINS_LAB"
+                            hawkins_fade_alpha = 0
+                            hawkins_fade_in_alpha = 0
+                            can_click = False
+
+                # Handle END button click (separate from can_click check)
+                if current_scenario == "SHOUT" and shout_text_visible:
+                    button_width, button_height = 200, 50
+                    button_x = (WIDTH - button_width) // 2
+                    button_y = HEIGHT - 100
+                    
+                    # Check if click is within button bounds
+                    if (button_x <= mouse_pos[0] <= button_x + button_width and 
+                        button_y <= mouse_pos[1] <= button_y + button_height):
+                        print("END button clicked")  # Debug print
+                        pygame.quit()
+                        sys.exit()
 
     if game_state == TITLE_SCREEN:
         draw_title_screen(screen, assets)
@@ -304,31 +515,6 @@ while running:
             character_alpha = 0  # Start with a fully transparent character
     elif game_state == GAME_START:
         draw_game(screen, assets, selected_character, current_scenario)
-
-        # Only draw prompt and choices if the current scenario is not "EXPLORE"
-        if current_scenario != "EXPLORE":
-            prompt_font = assets['button_font']
-            prompt_text = "You Find Yourself In The Upside Down. What do you do?"
-            prompt_surface = prompt_font.render(prompt_text, True, (255, 255, 255))
-            prompt_rect = prompt_surface.get_rect(center=(WIDTH // 2, HEIGHT - 100))
-            screen.blit(prompt_surface, prompt_rect)
-
-            choices = [
-                "Explore",
-                "Sneak into Vecna's Lair",
-                "Shout for help",
-                "Find The Hawkins Lab"
-            ]
-            
-            # Left choices
-            screen.blit(prompt_font.render(choices[0], True, (255, 255, 255)), (50, HEIGHT - 60))
-            screen.blit(prompt_font.render(choices[1], True, (255, 255, 255)), (50, HEIGHT - 30))
-            
-            # Right choices
-            right_choice_x = WIDTH - 50 - prompt_font.size(choices[2])[0]  # Align right
-            screen.blit(prompt_font.render(choices[2], True, (255, 255, 255)), (right_choice_x, HEIGHT - 60))
-            right_choice_x = WIDTH - 50 - prompt_font.size(choices[3])[0]  # Align right
-            screen.blit(prompt_font.render(choices[3], True, (255, 255, 255)), (right_choice_x, HEIGHT - 30))
 
     pygame.display.flip()
     pygame.time.Clock().tick(60)  # Limit frame rate to 60 FPS
