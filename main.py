@@ -11,6 +11,9 @@ global can_click
 global hawkins_fade_alpha, hawkins_fade_in_alpha
 global shout_fade_alpha, shout_text_visible
 global explore_character
+global explore_prompt_alpha, explore_choices_alpha
+global run_fade_alpha, run_text_visible
+global run_clicked
 
 # Initialize global variables
 location_text_alpha = 255
@@ -31,6 +34,11 @@ hawkins_fade_in_alpha = 0
 shout_fade_alpha = 0
 shout_text_visible = False  # Flag to control when to show text
 explore_character = None
+explore_prompt_alpha = 0
+explore_choices_alpha = 0
+run_clicked = False
+run_fade_alpha = 0
+run_text_visible = False
 
 # Initialize Pygame
 pygame.init()
@@ -210,6 +218,9 @@ def draw_game(screen, assets, selected_character, current_scenario):
     global vecna_fade_alpha, vecna_fade_in_alpha
     global hawkins_fade_alpha, hawkins_fade_in_alpha
     global shout_fade_alpha, shout_text_visible
+    global explore_prompt_alpha, explore_choices_alpha
+    global run_fade_alpha, run_text_visible
+    global run_clicked
 
     if current_scenario == "EXPLORE":
         # Draw the green background with original fade effects
@@ -267,6 +278,75 @@ def draw_game(screen, assets, selected_character, current_scenario):
                     character_rect.right = WIDTH - 160
                     character_rect.bottom = HEIGHT - 140
                     screen.blit(flipped_character, character_rect)
+
+                # Add new prompt and choices with fade effect
+                if explore_fade_in_alpha >= 255:  # Only show after scene has faded in
+                    # Create a slightly larger font for the prompt and choices
+                    prompt_font = pygame.font.Font(os.path.join("fonts", "Pixellari.ttf"), 28)  # Increased from 24
+                    
+                    # Draw prompt
+                    prompt_text = f"A Demogorgon appears! What will {selected_character} do?"
+                    prompt_surface = prompt_font.render(prompt_text, True, (255, 255, 255))
+                    prompt_surface.set_alpha(explore_prompt_alpha)
+                    prompt_rect = prompt_surface.get_rect(center=(WIDTH // 2, HEIGHT - 100))
+                    screen.blit(prompt_surface, prompt_rect)
+
+                    # Draw choices with the same larger font
+                    if explore_prompt_alpha >= 255:
+                        choices = ["Run", "Fight"]
+                        
+                        # Calculate exact positions and areas for click detection
+                        run_x = WIDTH // 2 - 150
+                        run_y = HEIGHT - 60
+                        run_width = prompt_font.size(choices[0])[0]
+                        run_height = prompt_font.size(choices[0])[1]
+                        
+                        # Draw choices
+                        run_text = prompt_font.render(choices[0], True, (255, 255, 255))
+                        run_text.set_alpha(explore_choices_alpha)
+                        screen.blit(run_text, (run_x, run_y))
+                        
+                        # Optional: Draw debug rectangle to see clickable area
+                        pygame.draw.rect(screen, (255, 0, 0), (run_x, run_y, run_width, run_height), 1)
+                        
+                        fight_text = prompt_font.render(choices[1], True, (255, 255, 255))
+                        fight_text.set_alpha(explore_choices_alpha)
+                        screen.blit(fight_text, (WIDTH // 2 + 100, HEIGHT - 60))
+
+                        if explore_choices_alpha < 255:
+                            explore_choices_alpha += FADE_SPEED
+
+                    if explore_prompt_alpha < 255:
+                        explore_prompt_alpha += FADE_SPEED
+
+                    # If Run was clicked, start fading to black
+                    if run_clicked:  # We'll add this variable
+                        fade_surface = pygame.Surface((WIDTH, HEIGHT))
+                        fade_surface.fill((0, 0, 0))
+                        fade_surface.set_alpha(run_fade_alpha)
+                        screen.blit(fade_surface, (0, 0))
+                        
+                        if run_fade_alpha < 255:
+                            run_fade_alpha += FADE_SPEED
+                        elif not run_text_visible:
+                            run_text_visible = True
+                            
+                        # Show text and button after screen is black
+                        if run_text_visible:
+                            # Draw text - now with Max-specific message
+                            text = assets['title_font'].render("Max ran away into the darkness alone...", True, (255, 255, 255))
+                            text_rect = text.get_rect(center=(WIDTH // 2, HEIGHT // 2))
+                            screen.blit(text, text_rect)
+                            
+                            # Draw END button
+                            button_width, button_height = 200, 50
+                            button_x = (WIDTH - button_width) // 2
+                            button_y = HEIGHT - 100
+                            pygame.draw.rect(screen, (255, 0, 0), (button_x, button_y, button_width, button_height))
+                            
+                            end_text = assets['button_font'].render("END", True, (255, 255, 255))
+                            end_rect = end_text.get_rect(center=(button_x + button_width // 2, button_y + button_height // 2))
+                            screen.blit(end_text, end_rect)
 
     elif current_scenario == "VECNA_LAIR":
         if vecna_fade_alpha < 255:
@@ -465,42 +545,48 @@ while running:
                             loading_progress = 0  # Reset loading progress
                             fade_alpha = 0  # Reset fade alpha
             elif game_state == GAME_START:
-                if can_click:  # Only handle clicks if they're allowed
-                    if HEIGHT - 60 <= mouse_pos[1] <= HEIGHT:
-                        if mouse_pos[0] <= 200:  # Explore
-                            current_scenario = "EXPLORE"
-                            explore_fade_alpha = 0
-                            explore_fade_in_alpha = 0
-                            can_click = False
-                        elif mouse_pos[1] <= HEIGHT - 30 and 50 <= mouse_pos[0] <= 200:  # Sneak into Vecna's Lair
-                            current_scenario = "VECNA_LAIR"
-                            vecna_fade_alpha = 0
-                            vecna_fade_in_alpha = 0
-                            can_click = False
-                        elif HEIGHT - 60 <= mouse_pos[1] <= HEIGHT - 30 and mouse_pos[0] >= WIDTH - 200:
-                            current_scenario = "SHOUT"
-                            shout_fade_alpha = 0
-                            shout_text_visible = False
-                            can_click = False
-                            print("Clicked Shout")  # Debug print to verify click
-                        elif mouse_pos[1] >= HEIGHT - 30 and mouse_pos[0] >= WIDTH - 200:
-                            current_scenario = "HAWKINS_LAB"
-                            hawkins_fade_alpha = 0
-                            hawkins_fade_in_alpha = 0
-                            can_click = False
-
-                # Handle END button click (separate from can_click check)
-                if current_scenario == "SHOUT" and shout_text_visible:
-                    button_width, button_height = 200, 50
-                    button_x = (WIDTH - button_width) // 2
-                    button_y = HEIGHT - 100
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    mouse_pos = pygame.mouse.get_pos()
+                    print(f"Click detected at: {mouse_pos}")  # Debug print
                     
-                    # Check if click is within button bounds
-                    if (button_x <= mouse_pos[0] <= button_x + button_width and 
-                        button_y <= mouse_pos[1] <= button_y + button_height):
-                        print("END button clicked")  # Debug print
-                        pygame.quit()
-                        sys.exit()
+                    if current_scenario == "MAIN":
+                        # Check for "Explore" click in the main scenario
+                        if HEIGHT - 60 <= mouse_pos[1] <= HEIGHT - 30:  # Y position check
+                            if 50 <= mouse_pos[0] <= 200:  # X position for "Explore"
+                                print("Explore clicked!")
+                                current_scenario = "EXPLORE"
+                                explore_fade_alpha = 0
+                                explore_fade_in_alpha = 0
+                                explore_prompt_alpha = 0
+                                explore_choices_alpha = 0
+                    
+                    elif current_scenario == "EXPLORE":
+                        if explore_fade_in_alpha >= 255:  # Only after fade in is complete
+                            if not run_clicked:  # If we haven't clicked run yet
+                                # Check for Run button click
+                                run_x = WIDTH // 2 - 150
+                                run_y = HEIGHT - 60
+                                run_width = assets['button_font'].size("Run")[0]
+                                run_height = assets['button_font'].size("Run")[1]
+                                
+                                if (run_x <= mouse_pos[0] <= run_x + run_width and 
+                                    run_y <= mouse_pos[1] <= run_y + run_height):
+                                    print("Run clicked!")
+                                    run_clicked = True
+                                    run_fade_alpha = 0
+                                    run_text_visible = False
+                            
+                            elif run_text_visible:  # If we're showing the ending screen
+                                # Check for END button click
+                                button_width, button_height = 200, 50
+                                button_x = (WIDTH - button_width) // 2
+                                button_y = HEIGHT - 100
+                                
+                                if (button_x <= mouse_pos[0] <= button_x + button_width and 
+                                    button_y <= mouse_pos[1] <= button_y + button_height):
+                                    print("END button clicked!")
+                                    pygame.quit()
+                                    sys.exit()
 
     if game_state == TITLE_SCREEN:
         draw_title_screen(screen, assets)
