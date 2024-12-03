@@ -2,6 +2,7 @@ import pygame
 import sys
 import os
 import time
+import random
 
 # Global variables
 global location_text_alpha, location_text_timer, LOCATION_TEXT_DURATION, location_text_shown, character_alpha
@@ -13,7 +14,16 @@ global shout_fade_alpha, shout_text_visible
 global explore_character
 global explore_prompt_alpha, explore_choices_alpha
 global run_fade_alpha, run_text_visible
-global run_clicked
+global run_clicked, fight_sequence_startedY
+global lightning_flash, lightning_timer, attack_animation_frameYY
+global character_attack_pos, demogorgon_hit_pos
+global fight_fade_alpha, fight_fade_complete
+global player_pos, demogorgon_pos
+global fight_fade_in_alpha
+global countdown_timer, countdown_started, chase_started
+global last_countdown_update
+global fireballs
+global last_fireball_time
 
 # Initialize global variables
 location_text_alpha = 255
@@ -39,6 +49,23 @@ explore_choices_alpha = 0
 run_clicked = False
 run_fade_alpha = 0
 run_text_visible = False
+lightning_flash = False
+lightning_timer = 0
+attack_animation_frame = 0
+character_attack_pos = 0
+demogorgon_hit_pos = 0
+fight_sequence_started = False  # Add this with the other initializations
+fight_fade_alpha = 0
+fight_fade_complete = False
+fight_fade_in_alpha = 0
+countdown_timer = 5  # Start at 5 seconds
+countdown_started = False
+chase_started = False
+last_countdown_update = 0
+fireballs = []  # List to store active fireballs
+last_fireball_time = 0  # Cooldown timer for shooting
+FIREBALL_COOLDOWN = 500  # Milliseconds between shots
+FIREBALL_SPEED = 7  # Speed of fireballs
 
 # Initialize Pygame
 pygame.init()
@@ -47,6 +74,10 @@ pygame.init()
 WIDTH, HEIGHT = 800, 600
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Stranger Things Adventure")
+
+# Initialize positions
+player_pos = [WIDTH - 130 - 100, HEIGHT - 130 - 200]  # Starting position for player
+demogorgon_pos = [50, HEIGHT - 330]  # Move further left
 
 # Load assets
 def load_assets():
@@ -92,6 +123,7 @@ TITLE_SCREEN = 0
 CHARACTER_SELECT = 1
 LOADING_SCREEN = 2
 GAME_START = 3
+FIGHT_SCENE = 4
 
 # Game variables
 game_state = TITLE_SCREEN
@@ -221,6 +253,7 @@ def draw_game(screen, assets, selected_character, current_scenario):
     global explore_prompt_alpha, explore_choices_alpha
     global run_fade_alpha, run_text_visible
     global run_clicked
+    global lightning_flash, lightning_timer
 
     if current_scenario == "EXPLORE":
         # Draw the green background with original fade effects
@@ -294,27 +327,24 @@ def draw_game(screen, assets, selected_character, current_scenario):
                     # Draw choices with the same larger font
                     if explore_prompt_alpha >= 255:
                         choices = ["Run", "Fight"]
+                        prompt_font = pygame.font.Font(os.path.join("fonts", "Pixellari.ttf"), 28)
                         
                         # Calculate exact positions and areas for click detection
                         run_x = WIDTH // 2 - 150
                         run_y = HEIGHT - 60
-                        run_width = prompt_font.size(choices[0])[0]
-                        run_height = prompt_font.size(choices[0])[1]
                         
-                        # Draw choices
+                        # Draw choices without alpha
                         run_text = prompt_font.render(choices[0], True, (255, 255, 255))
-                        run_text.set_alpha(explore_choices_alpha)
                         screen.blit(run_text, (run_x, run_y))
                         
-                        # Optional: Draw debug rectangle to see clickable area
-                        pygame.draw.rect(screen, (255, 0, 0), (run_x, run_y, run_width, run_height), 1)
-                        
+                        fight_x = WIDTH // 2 + 100
+                        fight_y = HEIGHT - 60
                         fight_text = prompt_font.render(choices[1], True, (255, 255, 255))
-                        fight_text.set_alpha(explore_choices_alpha)
-                        screen.blit(fight_text, (WIDTH // 2 + 100, HEIGHT - 60))
+                        screen.blit(fight_text, (fight_x, fight_y))
 
-                        if explore_choices_alpha < 255:
-                            explore_choices_alpha += FADE_SPEED
+                        # Debug rectangles
+                        pygame.draw.rect(screen, (255, 0, 0), (run_x, run_y, run_text.get_width(), run_text.get_height()), 1)
+                        pygame.draw.rect(screen, (255, 0, 0), (fight_x, fight_y, fight_text.get_width(), fight_text.get_height()), 1)
 
                     if explore_prompt_alpha < 255:
                         explore_prompt_alpha += FADE_SPEED
@@ -562,19 +592,20 @@ while running:
                     
                     elif current_scenario == "EXPLORE":
                         if explore_fade_in_alpha >= 255:  # Only after fade in is complete
-                            if not run_clicked:  # If we haven't clicked run yet
-                                # Check for Run button click
-                                run_x = WIDTH // 2 - 150
-                                run_y = HEIGHT - 60
-                                run_width = assets['button_font'].size("Run")[0]
-                                run_height = assets['button_font'].size("Run")[1]
+                            if not run_clicked and not fight_sequence_started:
+                                # Check for Fight button click
+                                fight_x = WIDTH // 2 + 100
+                                fight_y = HEIGHT - 60
+                                fight_width = assets['button_font'].size("Fight")[0]
+                                fight_height = assets['button_font'].size("Fight")[1]
                                 
-                                if (run_x <= mouse_pos[0] <= run_x + run_width and 
-                                    run_y <= mouse_pos[1] <= run_y + run_height):
-                                    print("Run clicked!")
-                                    run_clicked = True
-                                    run_fade_alpha = 0
-                                    run_text_visible = False
+                                if (fight_x <= mouse_pos[0] <= fight_x + fight_width and 
+                                    fight_y <= mouse_pos[1] <= fight_y + fight_height):
+                                    print("Fight clicked!")
+                                    fight_sequence_started = True
+                                    game_state = FIGHT_SCENE  # Change the game state
+                                    fight_fade_alpha = 0
+                                    fight_fade_complete = False
                             
                             elif run_text_visible:  # If we're showing the ending screen
                                 # Check for END button click
@@ -601,6 +632,158 @@ while running:
             character_alpha = 0  # Start with a fully transparent character
     elif game_state == GAME_START:
         draw_game(screen, assets, selected_character, current_scenario)
+    elif game_state == FIGHT_SCENE:
+        if not fight_fade_complete:
+            # Fade transition code
+            screen.blit(assets['gloomy_forest_three'], (20, 20))
+            fade_surface = pygame.Surface((WIDTH, HEIGHT))
+            fade_surface.fill((0, 0, 0))
+            fade_surface.set_alpha(fight_fade_alpha)
+            screen.blit(fade_surface, (0, 0))
+            
+            fight_fade_alpha += FADE_SPEED
+            if fight_fade_alpha >= 255:
+                fight_fade_complete = True
+        else:
+            # Draw checkerboard background
+            square_size = WIDTH // 8
+            for row in range(8):
+                for col in range(8):
+                    x = col * square_size
+                    y = row * square_size
+                    color = (139, 0, 0) if (row + col) % 2 == 0 else (0, 0, 0)
+                    pygame.draw.rect(screen, color, (x, y, square_size, square_size))
+            
+            # Draw the Demogorgon
+            demogorgon_img = assets['demogorgon']
+            demo_size = 150
+            scaled_demogorgon = pygame.transform.scale(demogorgon_img, (demo_size, demo_size))
+            screen.blit(scaled_demogorgon, demogorgon_pos)
+            
+            # Draw the player character
+            if selected_character in assets['characters']:
+                character_img = assets['characters'][selected_character]
+                char_size = 130
+                scaled_char = pygame.transform.scale(character_img, (char_size, char_size))
+                screen.blit(scaled_char, player_pos)
+            
+            # Draw border
+            border_thickness = 20
+            pygame.draw.rect(screen, (0, 0, 0), (0, 0, WIDTH, HEIGHT), border_thickness)
+            
+            # Handle countdown and chase logic
+            if fight_fade_in_alpha < 255:
+                fight_fade_in_alpha += FADE_SPEED
+            elif not countdown_started:
+                countdown_started = True
+                last_countdown_update = pygame.time.get_ticks()
+            
+            if countdown_started and not chase_started:
+                current_time = pygame.time.get_ticks()
+                if current_time - last_countdown_update >= 1000:
+                    countdown_timer -= 1
+                    last_countdown_update = current_time
+                    if countdown_timer <= 0:
+                        chase_started = True
+                
+                # Draw countdown number
+                if countdown_timer > 0:
+                    countdown_font = pygame.font.Font(os.path.join("fonts", "Pixellari.ttf"), 72)
+                    countdown_text = countdown_font.render(str(countdown_timer), True, (255, 255, 255))
+                    text_rect = countdown_text.get_rect(center=(WIDTH // 2, HEIGHT // 2))
+                    screen.blit(countdown_text, text_rect)
+            
+            # Start chase after countdown
+            if chase_started:
+                current_time = pygame.time.get_ticks()
+                
+                # Handle player movement
+                keys = pygame.key.get_pressed()
+                move_speed = 5
+                
+                if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+                    player_pos[0] = max(border_thickness, player_pos[0] - move_speed)
+                if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+                    player_pos[0] = min(WIDTH - char_size - border_thickness, player_pos[0] + move_speed)
+                if keys[pygame.K_UP] or keys[pygame.K_w]:
+                    player_pos[1] = max(border_thickness, player_pos[1] - move_speed)
+                if keys[pygame.K_DOWN] or keys[pygame.K_s]:
+                    player_pos[1] = min(HEIGHT - char_size - border_thickness, player_pos[1] + move_speed)
+                
+                # Move Demogorgon towards player
+                demo_speed = 2  # Slower speed
+                if demogorgon_pos[0] < player_pos[0] - 200:  # Keep some distance
+                    demogorgon_pos[0] += demo_speed
+                elif demogorgon_pos[0] > player_pos[0] - 200:
+                    demogorgon_pos[0] -= demo_speed
+                
+                if demogorgon_pos[1] < player_pos[1]:
+                    demogorgon_pos[1] += demo_speed
+                elif demogorgon_pos[1] > player_pos[1]:
+                    demogorgon_pos[1] -= demo_speed
+                
+                # Handle fireball shooting
+                if keys[pygame.K_SPACE] and current_time - last_fireball_time > FIREBALL_COOLDOWN:
+                    # Create new fireball at player position
+                    fireball_x = player_pos[0]
+                    fireball_y = player_pos[1] + char_size // 2
+                    
+                    # Calculate direction to Demogorgon
+                    dx = demogorgon_pos[0] - fireball_x
+                    dy = demogorgon_pos[1] - fireball_y
+                    
+                    # Normalize the direction
+                    distance = (dx * dx + dy * dy) ** 0.5
+                    if distance > 0:  # Avoid division by zero
+                        dx = dx / distance
+                        dy = dy / distance
+                    
+                    # Store fireball with its direction
+                    fireballs.append([fireball_x, fireball_y, dx, dy])
+                    last_fireball_time = current_time
+                
+                # Update and draw fireballs
+                for fireball in fireballs[:]:
+                    # Recalculate direction to Demogorgon for homing effect
+                    dx = demogorgon_pos[0] - fireball[0]
+                    dy = demogorgon_pos[1] - fireball[1]
+                    distance = (dx * dx + dy * dy) ** 0.5
+                    if distance > 0:
+                        dx = dx / distance
+                        dy = dy / distance
+                    
+                    # Move fireball towards Demogorgon
+                    fireball[0] += dx * FIREBALL_SPEED
+                    fireball[1] += dy * FIREBALL_SPEED
+                    
+                    # Draw trail effect
+                    trail_length = 5
+                    for i in range(1, trail_length):
+                        trail_x = fireball[0] - dx * i * 2
+                        trail_y = fireball[1] - dy * i * 2
+                        alpha = 100 - i * 20
+                        trail_surface = pygame.Surface((20, 20), pygame.SRCALPHA)
+                        pygame.draw.circle(trail_surface, (0, 100, 255, alpha), (10, 10), 10 - i)
+                        screen.blit(trail_surface, (int(trail_x) - 10, int(trail_y) - 10))
+                    
+                    # Draw fireball with glow effect
+                    glow_surface = pygame.Surface((30, 30), pygame.SRCALPHA)
+                    pygame.draw.circle(glow_surface, (0, 100, 255, 100), (15, 15), 15)  # Outer glow
+                    screen.blit(glow_surface, (int(fireball[0]) - 15, int(fireball[1]) - 15))
+                    pygame.draw.circle(screen, (0, 100, 255), (int(fireball[0]), int(fireball[1])), 10)  # Core
+                    
+                    # Check collision with Demogorgon
+                    demogorgon_rect = pygame.Rect(demogorgon_pos[0], demogorgon_pos[1], demo_size, demo_size)
+                    fireball_rect = pygame.Rect(fireball[0] - 5, fireball[1] - 5, 10, 10)
+                    
+                    if demogorgon_rect.colliderect(fireball_rect):
+                        fireballs.remove(fireball)
+                        continue
+                    
+                    # Remove fireball if it goes off screen
+                    if (fireball[0] < 0 or fireball[0] > WIDTH or 
+                        fireball[1] < 0 or fireball[1] > HEIGHT):
+                        fireballs.remove(fireball)
 
     pygame.display.flip()
     pygame.time.Clock().tick(60)  # Limit frame rate to 60 FPS
