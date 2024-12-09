@@ -24,6 +24,9 @@ global countdown_timer, countdown_started, chase_started
 global last_countdown_update
 global fireballs
 global last_fireball_time
+global victory, victory_message_shown
+global player_health, demogorgon_health, DAMAGE_FROM_DEMOGORGON, DAMAGE_FROM_FIREBALL
+global move_speed
 
 # Initialize global variables
 location_text_alpha = 255
@@ -66,6 +69,14 @@ fireballs = []  # List to store active fireballs
 last_fireball_time = 0  # Cooldown timer for shooting
 FIREBALL_COOLDOWN = 500  # Milliseconds between shots
 FIREBALL_SPEED = 7  # Speed of fireballs
+victory = False
+victory_message_shown = False
+demo_speed = 3.5  # Add the chase speed as a constant
+player_health = 100
+demogorgon_health = 150  # More health for the boss
+DAMAGE_FROM_DEMOGORGON = 20  # Damage taken when hit by Demogorgon
+DAMAGE_FROM_FIREBALL = 10   # Damage dealt by fireballs
+move_speed = 7  # Player movement speed
 
 # Initialize Pygame
 pygame.init()
@@ -542,6 +553,28 @@ def draw_explore_scene(screen, assets, selected_character):
     right_choice_x = WIDTH - 50 - prompt_font.size(choices[1])[0]
     screen.blit(prompt_font.render(choices[1], True, (255, 255, 255)), (right_choice_x, HEIGHT - 60))
 
+# Add this function to draw health bars
+def draw_health_bar(screen, x, y, width, height, health, max_health):
+    # Calculate health ratio
+    ratio = health / max_health
+    
+    # Draw background (red)
+    pygame.draw.rect(screen, (255, 0, 0), (x, y, width, height))
+    
+    # Draw foreground (green)
+    if health > 0:
+        pygame.draw.rect(screen, (0, 255, 0), (x, y, width * ratio, height))
+    
+    # Draw border
+    pygame.draw.rect(screen, (255, 255, 255), (x, y, width, height), 2)
+    
+    # Add health numbers
+    font = pygame.font.Font(os.path.join("fonts", "Pixellari.ttf"), 16)
+    health_text = f"{int(health)}/{max_health}"
+    text_surface = font.render(health_text, True, (255, 255, 255))
+    text_rect = text_surface.get_rect(midtop=(x + width//2, y - 20))
+    screen.blit(text_surface, text_rect)
+
 # Main game loop
 current_scenario = "MAIN"
 
@@ -697,93 +730,157 @@ while running:
             if chase_started:
                 current_time = pygame.time.get_ticks()
                 
-                # Handle player movement
+                # Handle player movement only if not victory
                 keys = pygame.key.get_pressed()
-                move_speed = 5
+                if not victory:
+                    if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+                        player_pos[0] = max(20, player_pos[0] - move_speed)
+                    if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+                        player_pos[0] = min(WIDTH - char_size - 20, player_pos[0] + move_speed)
+                    if keys[pygame.K_UP] or keys[pygame.K_w]:
+                        player_pos[1] = max(20, player_pos[1] - move_speed)
+                    if keys[pygame.K_DOWN] or keys[pygame.K_s]:
+                        player_pos[1] = min(HEIGHT - char_size - 20, player_pos[1] + move_speed)
                 
-                if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-                    player_pos[0] = max(border_thickness, player_pos[0] - move_speed)
-                if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-                    player_pos[0] = min(WIDTH - char_size - border_thickness, player_pos[0] + move_speed)
-                if keys[pygame.K_UP] or keys[pygame.K_w]:
-                    player_pos[1] = max(border_thickness, player_pos[1] - move_speed)
-                if keys[pygame.K_DOWN] or keys[pygame.K_s]:
-                    player_pos[1] = min(HEIGHT - char_size - border_thickness, player_pos[1] + move_speed)
-                
-                # Move Demogorgon towards player
-                demo_speed = 2  # Slower speed
-                if demogorgon_pos[0] < player_pos[0] - 200:  # Keep some distance
-                    demogorgon_pos[0] += demo_speed
-                elif demogorgon_pos[0] > player_pos[0] - 200:
-                    demogorgon_pos[0] -= demo_speed
-                
-                if demogorgon_pos[1] < player_pos[1]:
-                    demogorgon_pos[1] += demo_speed
-                elif demogorgon_pos[1] > player_pos[1]:
-                    demogorgon_pos[1] -= demo_speed
-                
-                # Handle fireball shooting
-                if keys[pygame.K_SPACE] and current_time - last_fireball_time > FIREBALL_COOLDOWN:
-                    # Create new fireball at player position
-                    fireball_x = player_pos[0]
-                    fireball_y = player_pos[1] + char_size // 2
-                    
-                    # Calculate direction to Demogorgon
-                    dx = demogorgon_pos[0] - fireball_x
-                    dy = demogorgon_pos[1] - fireball_y
+                # Move Demogorgon only if not victory
+                if not victory:
+                    # Calculate direction to player
+                    dx = player_pos[0] - demogorgon_pos[0]
+                    dy = player_pos[1] - demogorgon_pos[1]
                     
                     # Normalize the direction
-                    distance = (dx * dx + dy * dy) ** 0.5
-                    if distance > 0:  # Avoid division by zero
-                        dx = dx / distance
-                        dy = dy / distance
-                    
-                    # Store fireball with its direction
-                    fireballs.append([fireball_x, fireball_y, dx, dy])
-                    last_fireball_time = current_time
-                
-                # Update and draw fireballs
-                for fireball in fireballs[:]:
-                    # Recalculate direction to Demogorgon for homing effect
-                    dx = demogorgon_pos[0] - fireball[0]
-                    dy = demogorgon_pos[1] - fireball[1]
                     distance = (dx * dx + dy * dy) ** 0.5
                     if distance > 0:
                         dx = dx / distance
                         dy = dy / distance
                     
-                    # Move fireball towards Demogorgon
-                    fireball[0] += dx * FIREBALL_SPEED
-                    fireball[1] += dy * FIREBALL_SPEED
+                    # Move Demogorgon
+                    chase_speed = 4.5
+                    demogorgon_pos[0] += dx * chase_speed
+                    demogorgon_pos[1] += dy * chase_speed
+                
+                # Handle fireball shooting (only if not victory)
+                if not victory and keys[pygame.K_SPACE] and current_time - last_fireball_time > FIREBALL_COOLDOWN:
+                    fireball_x = player_pos[0] + char_size // 2
+                    fireball_y = player_pos[1] + char_size // 2
                     
-                    # Draw trail effect
-                    trail_length = 5
-                    for i in range(1, trail_length):
-                        trail_x = fireball[0] - dx * i * 2
-                        trail_y = fireball[1] - dy * i * 2
-                        alpha = 100 - i * 20
-                        trail_surface = pygame.Surface((20, 20), pygame.SRCALPHA)
-                        pygame.draw.circle(trail_surface, (0, 100, 255, alpha), (10, 10), 10 - i)
-                        screen.blit(trail_surface, (int(trail_x) - 10, int(trail_y) - 10))
+                    # Target the Demogorgon's head
+                    target_x = demogorgon_pos[0] + demo_size // 2
+                    target_y = demogorgon_pos[1] + demo_size // 4
                     
-                    # Draw fireball with glow effect
-                    glow_surface = pygame.Surface((30, 30), pygame.SRCALPHA)
-                    pygame.draw.circle(glow_surface, (0, 100, 255, 100), (15, 15), 15)  # Outer glow
-                    screen.blit(glow_surface, (int(fireball[0]) - 15, int(fireball[1]) - 15))
-                    pygame.draw.circle(screen, (0, 100, 255), (int(fireball[0]), int(fireball[1])), 10)  # Core
+                    dx = target_x - fireball_x
+                    dy = target_y - fireball_y
                     
-                    # Check collision with Demogorgon
-                    demogorgon_rect = pygame.Rect(demogorgon_pos[0], demogorgon_pos[1], demo_size, demo_size)
+                    distance = (dx * dx + dy * dy) ** 0.5
+                    if distance > 0:
+                        dx = dx / distance
+                        dy = dy / distance
+                    
+                    fireballs.append([fireball_x, fireball_y, dx, dy])
+                    last_fireball_time = current_time  # Reset the cooldown timer
+                
+                # Update and draw fireballs
+                for fireball in fireballs[:]:
+                    # Update position
+                    fireball[0] += fireball[2] * FIREBALL_SPEED
+                    fireball[1] += fireball[3] * FIREBALL_SPEED
+                    
+                    # Define hitbox for Demogorgon
+                    demo_hitbox = pygame.Rect(
+                        demogorgon_pos[0] + demo_size//4,
+                        demogorgon_pos[1] + demo_size//4,
+                        demo_size//2,
+                        demo_size//2
+                    )
+                    
+                    # Check for collision with Demogorgon
                     fireball_rect = pygame.Rect(fireball[0] - 5, fireball[1] - 5, 10, 10)
-                    
-                    if demogorgon_rect.colliderect(fireball_rect):
+                    if demo_hitbox.colliderect(fireball_rect):
+                        if demogorgon_health > 0:  # Only reduce health if above 0
+                            demogorgon_health = max(0, demogorgon_health - DAMAGE_FROM_FIREBALL)  # Prevent negative health
+                            if demogorgon_health == 0:  # Check if this hit brought health to 0
+                                victory = True  # Set victory flag to freeze characters
+                                print("Game Over - Player Won!")
                         fireballs.remove(fireball)
                         continue
                     
-                    # Remove fireball if it goes off screen
-                    if (fireball[0] < 0 or fireball[0] > WIDTH or 
-                        fireball[1] < 0 or fireball[1] > HEIGHT):
-                        fireballs.remove(fireball)
+                    # Draw fireball effects
+                    trail_length = 8
+                    for i in range(1, trail_length):
+                        trail_x = fireball[0] - fireball[2] * i * 3
+                        trail_y = fireball[1] - fireball[3] * i * 3
+                        alpha = 150 - i * 15
+                        size = 12 - i
+                        trail_surface = pygame.Surface((size * 2, size * 2), pygame.SRCALPHA)
+                        pygame.draw.circle(trail_surface, (0, 150, 255, alpha), (size, size), size)
+                        screen.blit(trail_surface, (int(trail_x) - size, int(trail_y) - size))
+                    
+                    # Draw glow effects
+                    glow_surface = pygame.Surface((40, 40), pygame.SRCALPHA)
+                    pygame.draw.circle(glow_surface, (0, 100, 255, 50), (20, 20), 20)
+                    screen.blit(glow_surface, (int(fireball[0]) - 20, int(fireball[1]) - 20))
+                    
+                    glow_surface = pygame.Surface((30, 30), pygame.SRCALPHA)
+                    pygame.draw.circle(glow_surface, (0, 150, 255, 100), (15, 15), 15)
+                    screen.blit(glow_surface, (int(fireball[0]) - 15, int(fireball[1]) - 15))
+                    
+                    # Draw fireball core
+                    pygame.draw.circle(screen, (100, 200, 255), (int(fireball[0]), int(fireball[1])), 8)
+                    pygame.draw.circle(screen, (255, 255, 255), (int(fireball[0]), int(fireball[1])), 4)
+
+            # Draw health bars
+            bar_width = 100
+            bar_height = 10
+            draw_health_bar(screen, 
+                player_pos[0] + (char_size - bar_width) // 2,
+                player_pos[1] - 20,
+                bar_width, bar_height, 
+                player_health, 100)
+            
+            draw_health_bar(screen, 
+                demogorgon_pos[0] + (demo_size - bar_width) // 2,
+                demogorgon_pos[1] - 20,
+                bar_width, bar_height,
+                demogorgon_health, 150)
+
+            # Handle damage and collisions
+            if chase_started and not victory:
+                # Create hitboxes for collision detection
+                player_hitbox = pygame.Rect(
+                    player_pos[0] + char_size//4,
+                    player_pos[1] + char_size//4,
+                    char_size//2,
+                    char_size//2
+                )
+                
+                demo_hitbox = pygame.Rect(
+                    demogorgon_pos[0] + demo_size//4,
+                    demogorgon_pos[1] + demo_size//4,
+                    demo_size//2,
+                    demo_size//2
+                )
+                
+                # Check for collision between player and Demogorgon
+                if player_hitbox.colliderect(demo_hitbox):
+                    player_health -= DAMAGE_FROM_DEMOGORGON
+                    # Push player back when hit
+                    dx = player_pos[0] - demogorgon_pos[0]
+                    dy = player_pos[1] - demogorgon_pos[1]
+                    distance = (dx * dx + dy * dy) ** 0.5
+                    if distance > 0:
+                        player_pos[0] += (dx/distance) * 50
+                        player_pos[1] += (dy/distance) * 50
+                    
+                    # Check for game over conditions
+                    if player_health <= 0:
+                        print("Game Over - Player Lost")
+                        victory = False
+                        victory_message_shown = True
+                    
+                    if demogorgon_health <= 0:
+                        print("Game Over - Player Won!")
+                        victory = True
+                        victory_message_shown = True
 
     pygame.display.flip()
     pygame.time.Clock().tick(60)  # Limit frame rate to 60 FPS
