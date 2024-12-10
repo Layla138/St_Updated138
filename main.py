@@ -27,6 +27,7 @@ global last_fireball_time
 global victory, victory_message_shown
 global player_health, demogorgon_health, DAMAGE_FROM_DEMOGORGON, DAMAGE_FROM_FIREBALL
 global move_speed
+global fade_to_black_alpha, FADE_TO_BLACK_SPEED
 
 # Initialize global variables
 location_text_alpha = 255
@@ -77,6 +78,8 @@ demogorgon_health = 150  # More health for the boss
 DAMAGE_FROM_DEMOGORGON = 20  # Damage taken when hit by Demogorgon
 DAMAGE_FROM_FIREBALL = 10   # Damage dealt by fireballs
 move_speed = 7  # Player movement speed
+fade_to_black_alpha = 0
+FADE_TO_BLACK_SPEED = 2
 
 # Initialize Pygame
 pygame.init()
@@ -730,9 +733,9 @@ while running:
             if chase_started:
                 current_time = pygame.time.get_ticks()
                 
-                # Handle player movement only if not victory
+                # Handle player movement only if not victory_message_shown
                 keys = pygame.key.get_pressed()
-                if not victory:
+                if not victory_message_shown:  # Changed from 'not victory'
                     if keys[pygame.K_LEFT] or keys[pygame.K_a]:
                         player_pos[0] = max(20, player_pos[0] - move_speed)
                     if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
@@ -742,8 +745,8 @@ while running:
                     if keys[pygame.K_DOWN] or keys[pygame.K_s]:
                         player_pos[1] = min(HEIGHT - char_size - 20, player_pos[1] + move_speed)
                 
-                # Move Demogorgon only if not victory
-                if not victory:
+                # Move Demogorgon only if not victory_message_shown
+                if not victory_message_shown:  # Changed from 'not victory'
                     # Calculate direction to player
                     dx = player_pos[0] - demogorgon_pos[0]
                     dy = player_pos[1] - demogorgon_pos[1]
@@ -759,8 +762,8 @@ while running:
                     demogorgon_pos[0] += dx * chase_speed
                     demogorgon_pos[1] += dy * chase_speed
                 
-                # Handle fireball shooting (only if not victory)
-                if not victory and keys[pygame.K_SPACE] and current_time - last_fireball_time > FIREBALL_COOLDOWN:
+                # Handle fireball shooting (only if not victory_message_shown)
+                if not victory_message_shown and keys[pygame.K_SPACE] and current_time - last_fireball_time > FIREBALL_COOLDOWN:
                     fireball_x = player_pos[0] + char_size // 2
                     fireball_y = player_pos[1] + char_size // 2
                     
@@ -800,7 +803,7 @@ while running:
                             demogorgon_health = max(0, demogorgon_health - DAMAGE_FROM_FIREBALL)  # Prevent negative health
                             if demogorgon_health == 0:  # Check if this hit brought health to 0
                                 victory = True  # Set victory flag to freeze characters
-                                print("Game Over - Player Won!")
+                                print("Victory achieved! Starting fade...")  # Debug print
                         fireballs.remove(fireball)
                         continue
                     
@@ -844,7 +847,7 @@ while running:
                 demogorgon_health, 150)
 
             # Handle damage and collisions
-            if chase_started and not victory:
+            if chase_started and not victory_message_shown:
                 # Create hitboxes for collision detection
                 player_hitbox = pygame.Rect(
                     player_pos[0] + char_size//4,
@@ -875,12 +878,80 @@ while running:
                     if player_health <= 0:
                         print("Game Over - Player Lost")
                         victory = False
-                        victory_message_shown = True
+                        victory_message_shown = True  # This triggers the fade effect
                     
                     if demogorgon_health <= 0:
                         print("Game Over - Player Won!")
                         victory = True
                         victory_message_shown = True
+
+            # Handle victory/defeat fade effect
+            if victory_message_shown:  # Changed from just 'victory'
+                # Create a surface for fading
+                fade_surface = pygame.Surface((WIDTH, HEIGHT))
+                fade_surface.fill((0, 0, 0))
+                fade_surface.set_alpha(fade_to_black_alpha)
+                
+                # Draw game elements with decreasing opacity
+                if fade_to_black_alpha < 255:
+                    # Draw demogorgon with fade
+                    fading_demogorgon = scaled_demogorgon.copy()
+                    fading_demogorgon.set_alpha(255 - fade_to_black_alpha)
+                    screen.blit(fading_demogorgon, demogorgon_pos)
+                    
+                    # Draw player with fade
+                    if selected_character in assets['characters']:
+                        fading_char = scaled_char.copy()
+                        fading_char.set_alpha(255 - fade_to_black_alpha)
+                        screen.blit(fading_char, player_pos)
+                
+                # Apply the fade surface
+                screen.blit(fade_surface, (0, 0))
+                
+                # Increase fade alpha
+                fade_to_black_alpha = min(255, fade_to_black_alpha + FADE_TO_BLACK_SPEED)
+                
+                # Once fully faded, show victory/defeat message and buttons
+                if fade_to_black_alpha >= 255:
+                    # Victory/Defeat message
+                    victory_font = pygame.font.Font(os.path.join("fonts", "Pixellari.ttf"), 48)
+                    message = "Victory!" if victory else "Defeated!"
+                    message_text = victory_font.render(message, True, (255, 255, 255))
+                    text_rect = message_text.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 50))
+                    screen.blit(message_text, text_rect)
+                    
+                    # Play Again button
+                    play_again_button = pygame.Rect(WIDTH//2 - 150, HEIGHT//2 + 50, 200, 50)
+                    pygame.draw.rect(screen, (255, 0, 0), play_again_button)
+                    play_text = assets['button_font'].render("Play Again", True, (255, 255, 255))
+                    play_text_rect = play_text.get_rect(center=play_again_button.center)
+                    screen.blit(play_text, play_text_rect)
+                    
+                    # Quit button
+                    quit_button = pygame.Rect(WIDTH//2 + 50, HEIGHT//2 + 50, 100, 50)
+                    pygame.draw.rect(screen, (255, 0, 0), quit_button)
+                    quit_text = assets['button_font'].render("Quit", True, (255, 255, 255))
+                    quit_text_rect = quit_text.get_rect(center=quit_button.center)
+                    screen.blit(quit_text, quit_text_rect)
+                    
+                    # Handle button clicks
+                    if event.type == pygame.MOUSEBUTTONDOWN:
+                        mouse_pos = pygame.mouse.get_pos()
+                        if play_again_button.collidepoint(mouse_pos):
+                            # Reset game state
+                            game_state = TITLE_SCREEN
+                            victory = False
+                            victory_message_shown = False
+                            fade_to_black_alpha = 0
+                            player_health = 100
+                            demogorgon_health = 150
+                            player_pos = [WIDTH - 130 - 100, HEIGHT - 130 - 200]
+                            demogorgon_pos = [50, HEIGHT - 330]
+                            fireballs = []
+                            current_scenario = "MAIN"
+                        elif quit_button.collidepoint(mouse_pos):
+                            pygame.quit()
+                            sys.exit()
 
     pygame.display.flip()
     pygame.time.Clock().tick(60)  # Limit frame rate to 60 FPS
