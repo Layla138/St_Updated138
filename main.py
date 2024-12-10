@@ -10,7 +10,7 @@ global prompt_alpha, choices_alpha, prompt_hidden, explore_fade_alpha, explore_f
 global vecna_fade_alpha, vecna_fade_in_alpha
 global can_click
 global hawkins_fade_alpha, hawkins_fade_in_alpha
-global shout_fade_alpha, shout_text_visible
+global shout_fade_alpha, shout_text_visible, shout_buttons
 global explore_character
 global explore_prompt_alpha, explore_choices_alpha
 global run_fade_alpha, run_text_visible
@@ -47,6 +47,7 @@ hawkins_fade_alpha = 0
 hawkins_fade_in_alpha = 0
 shout_fade_alpha = 0
 shout_text_visible = False  # Flag to control when to show text
+shout_buttons = {}  # Initialize as empty dictionary
 explore_character = None
 explore_prompt_alpha = 0
 explore_choices_alpha = 0
@@ -427,11 +428,11 @@ def draw_game(screen, assets, selected_character, current_scenario):
                 hawkins_fade_in_alpha += FADE_SPEED
 
     elif current_scenario == "SHOUT":
-        # Draw the background
+        # Draw initial scene
         screen.blit(assets['gloomy_forest'], (20, 20))
         
         # Draw the character
-        if selected_character and selected_character in assets['characters']:
+        if selected_character in assets['characters']:
             character_image = assets['characters'][selected_character]
             character_image = pygame.transform.scale(character_image, (150, 150))
             character_rect = character_image.get_rect()
@@ -446,26 +447,35 @@ def draw_game(screen, assets, selected_character, current_scenario):
         
         if shout_fade_alpha < 255:
             shout_fade_alpha += FADE_SPEED
-        elif not shout_text_visible:
+        else:
             shout_text_visible = True
 
-        # Show text and button after screen is black
+        # Show text and buttons after fade is complete
         if shout_text_visible:
             # Draw text
             text = assets['title_font'].render("Nobody heard you...", True, (255, 255, 255))
-            text_rect = text.get_rect(center=(WIDTH // 2, HEIGHT // 2))
+            text_rect = text.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 50))
             screen.blit(text, text_rect)
             
-            # Draw END button
-            button_width, button_height = 200, 50
-            button_x = (WIDTH - button_width) // 2
-            button_y = HEIGHT - 100
-            pygame.draw.rect(screen, (255, 0, 0), (button_x, button_y, button_width, button_height))
+            # Play Again button
+            play_again_button = pygame.Rect(WIDTH//2 - 150, HEIGHT//2 + 50, 200, 50)
+            pygame.draw.rect(screen, (255, 0, 0), play_again_button)
+            play_text = assets['button_font'].render("Play Again", True, (255, 255, 255))
+            play_text_rect = play_text.get_rect(center=play_again_button.center)
+            screen.blit(play_text, play_text_rect)
             
-            # Draw button text
-            end_text = assets['button_font'].render("END", True, (255, 255, 255))
-            end_rect = end_text.get_rect(center=(button_x + button_width // 2, button_y + button_height // 2))
-            screen.blit(end_text, end_rect)
+            # Quit button
+            quit_button = pygame.Rect(WIDTH//2 + 50, HEIGHT//2 + 50, 100, 50)
+            pygame.draw.rect(screen, (255, 0, 0), quit_button)
+            quit_text = assets['button_font'].render("Quit", True, (255, 255, 255))
+            quit_text_rect = quit_text.get_rect(center=quit_button.center)
+            screen.blit(quit_text, quit_text_rect)
+            
+            # Update button positions
+            shout_buttons = {
+                'play_again': play_again_button,
+                'quit': quit_button
+            }
 
     else:
         # Reset all fade values when not in special scenarios
@@ -654,6 +664,20 @@ while running:
                                     print("END button clicked!")
                                     pygame.quit()
                                     sys.exit()
+
+            elif game_state == GAME_START and current_scenario == "SHOUT" and shout_text_visible and can_click:
+                if shout_buttons:  # Check if dictionary is not empty
+                    if shout_buttons['play_again'].collidepoint(mouse_pos):
+                        # Reset game state
+                        game_state = TITLE_SCREEN
+                        shout_fade_alpha = 0
+                        shout_text_visible = False
+                        can_click = True
+                        current_scenario = "MAIN"
+                        shout_buttons = {}  # Clear buttons
+                    elif shout_buttons['quit'].collidepoint(mouse_pos):
+                        pygame.quit()
+                        sys.exit()
 
     if game_state == TITLE_SCREEN:
         draw_title_screen(screen, assets)
