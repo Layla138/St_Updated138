@@ -735,7 +735,7 @@ while running:
                 
                 # Handle player movement only if not victory_message_shown
                 keys = pygame.key.get_pressed()
-                if not victory_message_shown:  # Changed from 'not victory'
+                if not victory_message_shown and demogorgon_health > 0:  # Added health check
                     if keys[pygame.K_LEFT] or keys[pygame.K_a]:
                         player_pos[0] = max(20, player_pos[0] - move_speed)
                     if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
@@ -745,8 +745,8 @@ while running:
                     if keys[pygame.K_DOWN] or keys[pygame.K_s]:
                         player_pos[1] = min(HEIGHT - char_size - 20, player_pos[1] + move_speed)
                 
-                # Move Demogorgon only if not victory_message_shown
-                if not victory_message_shown:  # Changed from 'not victory'
+                # Move Demogorgon only if not victory_message_shown and still alive
+                if not victory_message_shown and demogorgon_health > 0:  # Added health check
                     # Calculate direction to player
                     dx = player_pos[0] - demogorgon_pos[0]
                     dy = player_pos[1] - demogorgon_pos[1]
@@ -802,7 +802,8 @@ while running:
                         if demogorgon_health > 0:  # Only reduce health if above 0
                             demogorgon_health = max(0, demogorgon_health - DAMAGE_FROM_FIREBALL)  # Prevent negative health
                             if demogorgon_health == 0:  # Check if this hit brought health to 0
-                                victory = True  # Set victory flag to freeze characters
+                                victory = True  # Set victory flag
+                                victory_message_shown = True  # Trigger fade effect
                                 print("Victory achieved! Starting fade...")  # Debug print
                         fireballs.remove(fireball)
                         continue
@@ -886,7 +887,7 @@ while running:
                         victory_message_shown = True
 
             # Handle victory/defeat fade effect
-            if victory_message_shown:  # Changed from just 'victory'
+            if victory_message_shown:
                 # Create a surface for fading
                 fade_surface = pygame.Surface((WIDTH, HEIGHT))
                 fade_surface.fill((0, 0, 0))
